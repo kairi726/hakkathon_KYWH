@@ -1,0 +1,198 @@
+/* 全体のリセットとベーススタイル */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif;
+  background-color: #f9f9f7; /* 背景の柔らかな白 */
+  color: #333;
+  padding: 20px;
+}
+
+/* --- タブナビゲーション --- */
+.tab-container {
+  display: flex;
+  gap: 8px;
+  padding-left: 10px;
+  border-bottom: 2px solid #e0e0d8; /* タブ下の境界線 */
+}
+
+.tab-item {
+  display: inline-block;
+  padding: 12px 24px;
+  font-size: 16px;
+  text-decoration: none;
+  color: #555;
+  border-radius: 4px 4px 0 0;
+  box-shadow: 0 -2px 5px rgba(0,0,0,0.05);
+  transition: all 0.2s ease;
+}
+
+/* 各タブ特有のパステルカラー設定 */
+.tab-goal      { background-color: #f3b6b7; }
+.tab-todo      { background-color: #fef5c1; }
+.tab-time      { background-color: #ebd0b3; }
+.tab-opinion   { background-color: #c3bad3; }
+.tab-calendar  { background-color: #cee3be; }
+.tab-ai        { background-color: #e4b8cf; }
+
+/* 選択中のタブ（画像内の青枠と白い浮き上がりを再現） */
+.tab-item.active {
+  position: relative;
+  background-color: #fef5c1; /* To doの背景色 */
+  font-weight: bold;
+  transform: translateY(2px); /* 少し下に沈めてコンテンツと一体化 */
+  box-shadow: 0 4px 0 #fef5c1, inset 0 0 0 2px #4a90e2; /* 青い選択枠 */
+  z-index: 1;
+}
+
+/* --- メインコンテンツ --- */
+.content-container {
+  background-color: #ffffff;
+  min-height: 80vh;
+  padding: 40px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+}
+
+.page-title {
+  font-family: Georgia, serif; /* 画像のクラシックなフォントを再現 */
+  font-size: 36px;
+  font-weight: normal;
+  color: #555;
+  margin-bottom: 40px;
+}
+
+/* --- タスクリスト（テーブルレイアウト） --- */
+.todo-table {
+  width: 100%;
+  max-width: 900px;
+}
+
+/* タスク追加フォーム */
+.todo-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.todo-form input,
+.todo-form select,
+.todo-form button {
+  padding: 10px 14px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.todo-form input,
+.todo-form select {
+  min-width: 160px;
+}
+
+.todo-form button {
+  background-color: #4a90e2;
+  color: #fff;
+  border-color: #4a90e2;
+  cursor: pointer;
+}
+
+.todo-form button:hover {
+  background-color: #3a76c2;
+}
+
+/* レイアウトの共通グリッド設定 */
+.table-header, .table-row {
+  display: grid;
+  grid-template-columns: 40px 2fr 1fr 1fr 90px;
+  align-items: center;
+  padding: 12px 0;
+}
+
+/* ヘッダー固有 */
+.table-header {
+  border-bottom: 1px solid #999;
+  font-weight: bold;
+  color: #111;
+  font-size: 15px;
+}
+
+/* 各行のスタイル */
+.table-row {
+  font-size: 15px;
+  color: #333;
+  margin-top: 8px;
+}
+
+/* チェックボックスの微調整 */
+.col-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+/* --- ステータスバッジ（丸アイコン） --- */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 疑似要素でカラー丸アイコンを作成 */
+.status-badge::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* 進行中（緑） */
+.status-ongoing::before {
+  background: radial-gradient(circle at 4px 4px, #a3ff7d, #4cd113);
+}
+
+/* 未着手（白） */
+.status-not-started::before {
+  background: #ffffff;
+  border: 1px solid #ccc;
+}
+
+/* 完了（青） */
+.status-completed::before {
+  background: radial-gradient(circle at 4px 4px, #6ca7ff, #1d52db);
+}
+
+/* 行ごとのステータス選択 */
+.status-select {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 13px;
+}
+
+/* 完了タスクの強調 */
+.table-row.completed {
+  background-color: #eef6ff;
+  border-left: 4px solid #1d52db;
+  border-radius: 6px;
+  padding-left: 8px;
+}
+
+.table-row.completed .col-task {
+  text-decoration: line-through;
+  opacity: 0.85;
+}
+
+.table-row .status-badge {
+  margin-left: 8px;
+  font-weight: 600;
+}
+
+/* タブコンテンツ表示制御 */
+.tab-content { display: none; }
+.tab-content.active { display: block; }
