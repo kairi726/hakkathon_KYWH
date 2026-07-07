@@ -109,27 +109,3 @@ window.updateStatus = function(id, newStatus) {
 // 初回描画
 renderTodos();
 
-// --- タブ切替処理 ---
-function initTabs() {
-  const tabs = Array.from(document.querySelectorAll('.tab-item'));
-  const contents = Array.from(document.querySelectorAll('.tab-content'));
-
-  function showTab(name) {
-    tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
-    contents.forEach(c => c.classList.toggle('active', c.dataset.tab === name));
-  }
-
-  tabs.forEach(tab => {
-    tab.addEventListener('click', (e) => {
-      e.preventDefault();
-      const name = tab.dataset.tab;
-      showTab(name);
-    });
-  });
-
-  // 初期表示
-  const initial = document.querySelector('.tab-item.active')?.dataset.tab || 'todo';
-  showTab(initial);
-}
-
-initTabs();
