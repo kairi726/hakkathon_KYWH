@@ -3,74 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>To Do List</title>
-  <link rel="stylesheet" href="style.css">
+  <title>Opinion</title>
+  <link rel="stylesheet" href="opinion.css">
 </head>
 <body>
 
   <nav class="tab-container">
     <a href="#" class="tab-item tab-goal" data-tab="goal">Goal</a>
-    <a href="#" class="tab-item tab-todo active" data-tab="todo">To do</a>
+    <a href="#" class="tab-item tab-todo" data-tab="todo">To do</a>
     <a href="#" class="tab-item tab-time" data-tab="time">Time</a>
-    <a href="#" class="tab-item tab-opinion" data-tab="opinion">Opinion</a>
+    <a href="#" class="tab-item tab-opinion active" data-tab="opinion">Opinion</a>
     <a href="#" class="tab-item tab-calendar" data-tab="calendar">Calendar</a>
     <a href="#" class="tab-item tab-ai" data-tab="ai">AI Asistant</a>
   </nav>
 
-  <main class="content-container">
-    <h1 class="page-title">Project Dashboard</h1>
+  
 
-    <section class="tab-content" data-tab="goal">
-      <h2>Goal</h2>
-      <p>目標の管理エリア（プレースホルダ）</p>
-    </section>
-
-    <section class="tab-content active" data-tab="todo">
-      <div class="todo-table">
-        <form id="todo-form" class="todo-form">
-          <input id="task-input" type="text" placeholder="タスク名" required>
-          <input id="assignee-input" type="text" placeholder="担当者">
-          <select id="status-input">
-            <option value="not-started">未着手</option>
-            <option value="ongoing">進行中</option>
-            <option value="completed">完了</option>
-          </select>
-          <button type="submit">追加</button>
-        </form>
-
-        <div class="table-header">
-          <div class="col-check"></div>
-          <div class="col-task">タスク名</div>
-          <div class="col-assignee">担当者</div>
-          <div class="col-status">進捗状況</div>
-          <div class="col-action">操作</div>
-        </div>
-
-        <div id="todo-list-container"></div>
-      </div>
-    </section>
-
-    <section class="tab-content" data-tab="time">
-      <h2>Time</h2>
-      <p>時間管理エリア（プレースホルダ）</p>
-    </section>
-
-    <section class="tab-content" data-tab="opinion">
-      <h2>Opinion</h2>
-      <p>意見・メモ（プレースホルダ）</p>
-    </section>
-
-    <section class="tab-content" data-tab="calendar">
-      <h2>Calendar</h2>
-      <p>カレンダー（プレースホルダ）</p>
-    </section>
-
-    <section class="tab-content" data-tab="ai">
-      <h2>AI Assistant</h2>
-      <p>AI支援エリア（プレースホルダ）</p>
-    </section>
-    
-  </main>
 
   <script src="script.js"></script>
 </body>
