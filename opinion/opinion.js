@@ -84,7 +84,9 @@ function buildNoteEl(n){
   const reactions = document.createElement('div');
   reactions.className = 'reactions';
   Object.entries(n.reactions || {}).forEach(([key, count]) => {
-    reactions.appendChild(reactBtn(n, key, normalizeReactionKey(key), count));
+    if(Number(count) > 0) {
+      reactions.appendChild(reactBtn(n, key, normalizeReactionKey(key), count));
+    }
   });
 
   const reactionAdder = document.createElement('div');
@@ -134,9 +136,26 @@ function buildNoteEl(n){
 
   const list = document.createElement('ul');
   list.className = 'comment-list';
-  n.comments.forEach(c => {
+  n.comments.forEach((c, idx) => {
     const li = document.createElement('li');
-    li.textContent = c;
+    const span = document.createElement('span');
+    span.textContent = c;
+    li.appendChild(span);
+    const deleteBtn = document.createElement('button');
+    deleteBtn.textContent = '×';
+    deleteBtn.style.marginLeft = '8px';
+    deleteBtn.style.cursor = 'pointer';
+    deleteBtn.style.border = 'none';
+    deleteBtn.style.background = 'none';
+    deleteBtn.style.color = 'inherit';
+    deleteBtn.style.fontSize = '16px';
+    deleteBtn.style.padding = '0';
+    deleteBtn.onclick = async () => {
+      n.comments.splice(idx, 1);
+      await saveNotes();
+      render();
+    };
+    li.appendChild(deleteBtn);
     list.appendChild(li);
   });
 
