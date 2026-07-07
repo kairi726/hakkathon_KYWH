@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Page</title>
+<link rel="stylesheet" href="mypage.css">
+</head>
+<body>
+
+<!-- ===== 仮のユーザー識別（ログイン機能は別担当が実装予定。できあがったらここを置き換える） ===== -->
+<div id="identity-screen" class="auth-screen">
+  <div class="auth-card">
+    <h1 class="auth-title">My Page</h1>
+    <p class="auth-sub">お名前とメールアドレスを入力してください（仮の識別用。ログイン機能ができたら自動で置き換わります）</p>
+    <form id="identity-form" class="auth-form">
+      <label class="form-label">お名前
+        <input id="identity-name" type="text" required placeholder="例：田中">
+      </label>
+      <label class="form-label">メールアドレス
+        <input id="identity-email" type="email" required placeholder="you@example.com">
+      </label>
+      <button type="submit" class="add-btn add-btn-goal">はじめる</button>
+    </form>
+  </div>
+</div>
+
+<!-- ===== メインアプリ ===== -->
+<div id="app-screen" class="app-screen" style="display:none;">
+
+  <!-- ユーザーバー -->
+  <div class="user-bar">
+    <span id="user-email-label" class="user-email-label"></span>
+    <button id="logout-btn" class="text-btn">ログアウト</button>
+  </div>
+
+  <!-- ===== カテゴリー一覧画面（最初の画面） ===== -->
+  <div id="category-list-screen">
+    <h2 class="page-title">カテゴリー</h2>
+
+    <div id="category-list-chips" class="category-list-chips"></div>
+
+    <!-- カテゴリーが1つも無いとき -->
+    <div id="no-category-msg" class="empty-state" style="display:none;">
+      <p class="empty-state-icon">🗂️</p>
+      <p class="empty-state-title">まだカテゴリーがありません</p>
+      <p class="empty-state-sub">カテゴリーを作ると、Goal・To do・Time・Calendarなどのタブが自動で使えるようになります</p>
+    </div>
+
+    <!-- カテゴリー追加フォーム（トグル表示） -->
+    <div id="category-form-box" class="category-form-box" style="display:none;">
+      <input id="new-category-name" type="text" placeholder="カテゴリー名（例：文化祭実行委員）">
+      <div id="color-picker" class="color-picker"></div>
+      <button id="create-category-btn" class="add-btn add-btn-goal">作成</button>
+      <button id="cancel-category-btn" class="text-btn">キャンセル</button>
+      <p id="category-form-error" class="category-form-error"></p>
+    </div>
+
+    <div class="add-category-center">
+      <button id="add-category-btn" class="add-btn-big">＋ カテゴリーを追加する</button>
+    </div>
+  </div>
+
+  <!-- ===== 選択中カテゴリーのコンテンツ（詳細画面） ===== -->
+  <div id="category-content" style="display:none;">
+
+    <button id="back-to-list-btn" class="text-btn back-to-list-btn">← カテゴリー一覧 / カテゴリーを追加</button>
+
+    <!-- 既存のタブバー（Goal / To do / Time / Opinion / Calendar / AI Asistant） -->
+    <nav class="tab-container">
+      <a href="#" class="tab-item tab-goal active" data-tab="goal">Goal</a>
+      <a href="#" class="tab-item tab-todo" data-tab="todo">To do</a>
+      <a href="#" class="tab-item tab-time" data-tab="time">Time</a>
+      <a href="#" class="tab-item tab-opinion" data-tab="opinion">Opinion</a>
+      <a href="#" class="tab-item tab-calendar" data-tab="calendar">Calendar</a>
+      <a href="#" class="tab-item tab-ai" data-tab="ai">AI Asistant</a>
+    </nav>
+
+    <div class="cal-layout">
+
+      <!-- 左：メンバー・招待・共有 -->
+      <div class="side-panel">
+        <h3 class="side-card-title">Member</h3>
+        <div id="member-list" class="member-list"></div>
+
+        <div class="invite-box">
+          <label class="form-label">招待するメールアドレス
+            <input id="invite-email" type="email" placeholder="invite@example.com">
+          </label>
+          <button id="invite-btn" class="add-btn add-btn-goal">招待する</button>
+          <p id="invite-msg" class="invite-msg"></p>
+        </div>
+
+        <div class="share-box">
+          <button id="share-link-btn" class="add-btn add-btn-todo">🔗 共有リンクをコピー</button>
+          <p class="share-hint">このリンクを開くと、招待なしでもこのカテゴリーに参加できます。</p>
+        </div>
+
+        <div class="danger-box">
+          <button id="delete-category-btn" class="add-btn add-btn-danger">🗑 このカテゴリーを削除</button>
+          <p class="danger-hint">間違えて作成したときのための削除ボタンです。一度削除すると元に戻せません。</p>
+        </div>
+      </div>
+
+      <!-- 右：タブごとのコンテンツ -->
+      <div class="content-area">
+
+        <!-- Goal -->
+        <div class="tab-panel active" data-panel="goal">
+          <h2 class="page-title">Goal</h2>
+          <textarea id="goal-text" class="goal-box" placeholder="このカテゴリーの目標を入力…"></textarea>
+          <h3 class="section-title">Information</h3>
+          <textarea id="goal-info" class="info-box" placeholder="目標に対する説明"></textarea>
+          <p id="goal-saved-label" class="saved-label"></p>
+        </div>
+
+        <!-- To do -->
+        <div class="tab-panel" data-panel="todo">
+          <h2 class="page-title">To do</h2>
+          <iframe class="embedded-page" src="" style="display:none;"></iframe>
+        </div>
+
+        <!-- Time -->
+        <div class="tab-panel" data-panel="time">
+          <h2 class="page-title">Time</h2>
+          <p class="placeholder-note">Time機能は準備中です。</p>
+        </div>
+
+        <!-- Opinion -->
+        <div class="tab-panel" data-panel="opinion">
+          <h2 class="page-title">Opinion</h2>
+          <iframe class="embedded-page" src="" style="display:none;"></iframe>
+        </div>
+
+        <!-- Calendar -->
+        <div class="tab-panel" data-panel="calendar">
+          <h2 class="page-title">Calendar</h2>
+          <iframe class="embedded-page" src="" style="display:none;"></iframe>
+        </div>
+
+        <!-- AI Asistant -->
+        <div class="tab-panel" data-panel="ai">
+          <h2 class="page-title">AI Asistant</h2>
+          <p class="placeholder-note">AI Asistant機能は準備中です。</p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase SDK（compat版：ビルド不要でそのまま使える） -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="mypage.js"></script>
+</body>
+</html>
