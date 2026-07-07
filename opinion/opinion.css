@@ -276,26 +276,100 @@ body{
 .composer-cancel{background:#eee8d8;color:var(--ink-soft);} 
 .composer-save{background:var(--coral);color:var(--coral-ink);} 
 
+.memo-toolbar{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  padding-bottom:12px;
+  border-bottom:1px solid rgba(0,0,0,0.1);
+  margin-bottom:12px;
+  flex-wrap:wrap;
+}
+.memo-btn{
+  background:#fffdf8;
+  border:1px solid #D0C9C0;
+  border-radius:4px;
+  padding:6px 10px;
+  cursor:pointer;
+  font-size:13px;
+  font-weight:600;
+  color:var(--ink);
+  transition:background .15s ease;
+}
+.memo-btn:hover{
+  background:#fff9f0;
+  border-color:#C9BFA6;
+}
+.memo-btn:active{
+  background:#f0eae0;
+}
+.memo-separator{
+  display:inline-block;
+  width:1px;
+  height:20px;
+  background:rgba(0,0,0,0.1);
+  margin:0 4px;
+}
+.memo-color-group{
+  position:relative;
+}
+.memo-color-palette{
+  position:absolute;
+  top:32px;
+  left:0;
+  display:none;
+  flex-wrap:wrap;
+  gap:4px;
+  background:#fffdf8;
+  border:1px solid #D0C9C0;
+  border-radius:6px;
+  padding:8px;
+  width:120px;
+  z-index:100;
+  box-shadow:0 2px 8px rgba(0,0,0,0.1);
+}
+.memo-color-option{
+  width:24px;
+  height:24px;
+  border:2px solid #ccc;
+  border-radius:3px;
+  cursor:pointer;
+  transition:transform .1s ease, border-color .1s ease;
+}
+.memo-color-option:hover{
+  border-color:#333;
+  transform:scale(1.1);
+}
+.memo-color-option.active{
+  border:3px solid #333;
+  box-shadow:0 0 0 2px rgba(0,0,0,0.2);
+}
 .memo-panel{
   background:#DCD9D0;
-  
   padding:20px;
   min-height:420px;
   box-shadow:inset 0 1px 3px rgba(0,0,0,0.06);
+  border-radius:8px;
 }
-.memo-panel textarea{
-  width:100%;
-  min-height:380px;
-  border:none;
-  background:transparent;
-  resize:vertical;
-  
+.memo-editor{
+  min-height:360px;
+  padding:12px;
+  background:#fffdf8;
+  border-radius:6px;
+  font-family:"Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif;
   font-size:14.5px;
   line-height:1.8;
   color:var(--ink);
   outline:none;
+  white-space:pre-wrap;
+  word-break:break-word;
+  overflow-y:auto;
 }
-.memo-panel textarea::placeholder{color:#96917F;}
+.memo-editor:empty::before{
+  content:'自由に書ける';
+  color:#96917F;
+  pointer-events:none;
+}
 .save-hint{
   font-size:11px;
   color:#96917F;
@@ -306,4 +380,21 @@ body{
   font-size:11.5px;
   color:var(--ink-soft);
   margin:-16px 0 24px;
+}
+/* 太字・イタリック・下線・リストなどが有効な時、ボタンの周りに色がつく */
+.memo-btn.active{
+  background:rgba(0,0,0,0.12);
+  box-shadow:0 0 0 2px var(--coral, #F1B6A8);
+}
+
+/* 選択中の文字色・マーカー色のスウォッチにも印をつける */
+.memo-color-option.active{
+  box-shadow:0 0 0 2px #333, 0 0 0 4px #fff;
+}
+
+/* メモ帳の中のリンクにマウスが乗ったら、ポインター（手）にする */
+.memo-editor a {
+    cursor: pointer;
+    color: #2563eb; /* 好みの青色に調整してください */
+    text-decoration: underline;
 }
