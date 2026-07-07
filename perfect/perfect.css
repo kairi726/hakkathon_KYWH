@@ -1,0 +1,73 @@
+/* 全体のリセットとベーススタイル */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif;
+  background-color: #f9f9f7; /* 背景の柔らかな白 */
+  color: #333;
+  padding: 20px;
+}
+
+/* --- タブナビゲーション --- */
+.tab-container {
+  display: flex;
+  width: 100%;
+  gap: 5px;
+  padding-left: 0;
+  border-bottom: 2px solid #e0e0d8; /* タブ下の境界線 */
+}
+
+.tab-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 12px 8px;
+  font-size: 16px;
+  font-family: Georgia, serif;
+  text-align: center;
+  text-decoration: none;
+  color: #555;
+  border-radius: 4px 4px 0 0;
+  box-shadow: 0 -2px 5px rgba(0,0,0,0.05);
+  transition: all 0.2s ease;
+}
+
+/* 各タブ特有のパステルカラー設定 */
+.tab-goal      { background-color: #f3b6b7; }
+.tab-todo      { background-color: #fef5c1; }
+.tab-time      { background-color: #ebd0b3; }
+.tab-opinion   { background-color: #c3bad3; }
+.tab-calendar  { background-color: #cee3be; }
+.tab-ai        { background-color: #e4b8cf; }
+
+/* 選択中のタブ（画像内の青枠と白い浮き上がりを再現） */
+.tab-item.active {
+  position: relative;
+  
+  font-weight: bold;
+  transform: translateY(2px); /* 少し下に沈めてコンテンツと一体化 */
+  box-shadow: 0 2px 0 #c8c7c6; 
+}
+
+/* --- メインコンテンツ --- */
+.content-container {
+  background-color: #fdfbf7;
+  min-height: 80vh;
+  padding: 40px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+}
+
+.page-title {
+  font-family: Georgia, serif; /* 画像のクラシックなフォントを再現 */
+  font-size: 36px;
+  font-weight: normal;
+  color: #555;
+  margin-bottom: 40px;
+}
+
