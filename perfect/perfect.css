@@ -56,11 +56,34 @@ body {
 }
 
 /* --- メインコンテンツ --- */
-.content-container {
+.tab-content {
+  margin-top: 10px;
   background-color: #fdfbf7;
   min-height: 80vh;
-  padding: 40px;
+  padding: 20px;
   box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+}
+
+.tab-panel {
+  display: none;
+}
+
+.tab-panel.active {
+  display: block;
+}
+
+.embedded-page {
+  width: 100%;
+  min-height: 75vh;
+  border: 0;
+  background-color: #fff;
+  display: block;
+}
+
+.panel-placeholder {
+  padding: 24px;
+  color: #666;
+  font-size: 16px;
 }
 
 .page-title {
