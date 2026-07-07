@@ -366,7 +366,7 @@ body{
   overflow-y:auto;
 }
 .memo-editor:empty::before{
-  content:'自由に書ける';
+  content:'ここに記入してください。';
   color:#96917F;
   pointer-events:none;
 }
@@ -380,16 +380,6 @@ body{
   font-size:11.5px;
   color:var(--ink-soft);
   margin:-16px 0 24px;
-}
-/* 太字・イタリック・下線・リストなどが有効な時、ボタンの周りに色がつく */
-.memo-btn.active{
-  background:rgba(0,0,0,0.12);
-  box-shadow:0 0 0 2px var(--coral, #F1B6A8);
-}
-
-/* 選択中の文字色・マーカー色のスウォッチにも印をつける */
-.memo-color-option.active{
-  box-shadow:0 0 0 2px #333, 0 0 0 4px #fff;
 }
 
 /* メモ帳の中のリンクにマウスが乗ったら、ポインター（手）にする */
