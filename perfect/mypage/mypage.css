@@ -1,0 +1,236 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif;
+  background-color: #fdf9f5;
+  color: #333;
+}
+
+/* ===== ログイン画面 ===== */
+.auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.auth-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  padding: 32px 36px;
+  width: 100%;
+  max-width: 360px;
+}
+.auth-title {
+  font-family: Georgia, serif;
+  font-size: 28px;
+  font-weight: normal;
+  color: #555;
+  margin-bottom: 6px;
+}
+.auth-sub { font-size: 13px; color: #999; margin-bottom: 20px; }
+.auth-form { display: flex; flex-direction: column; gap: 12px; }
+.auth-btn-row { display: flex; gap: 8px; margin-top: 4px; }
+.auth-btn-row button { flex: 1; }
+.auth-error { font-size: 12px; color: #d07070; min-height: 16px; }
+
+/* ===== 共通フォーム部品 ===== */
+.form-label {
+  font-size: 12px; color: #888;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.form-label input, .form-label textarea {
+  padding: 8px 10px;
+  border: 1px solid #e0ddd8;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  background: #fdf9f5;
+  color: #333;
+}
+.form-label input:focus, .form-label textarea:focus {
+  outline: none;
+  border-color: #A6D8E4;
+  box-shadow: 0 0 0 3px rgba(166,216,228,0.25);
+  background: #fff;
+}
+
+.add-btn {
+  padding: 10px 16px;
+  border: none; border-radius: 8px;
+  font-size: 14px; font-family: inherit;
+  cursor: pointer; font-weight: bold;
+  transition: background 0.15s;
+}
+.add-btn-goal { background: #f3b6b7; color: #5a1a1a; }
+.add-btn-goal:hover { background: #ea9a9b; }
+.add-btn-todo { background: #fef5c1; color: #6a5a10; }
+.add-btn-todo:hover { background: #f5e890; }
+.add-btn-danger { background: #fdeaea; color: #b04a4a; border: 1px solid #f0c8c8; }
+.add-btn-danger:hover { background: #f8d5d5; }
+
+.text-btn {
+  background: none; border: none; color: #999;
+  font-size: 13px; cursor: pointer; padding: 6px 8px;
+}
+.text-btn:hover { color: #666; text-decoration: underline; }
+
+/* ===== アプリ全体 ===== */
+.app-screen { padding: 20px 28px 40px; }
+
+.user-bar {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 10px; margin-bottom: 14px;
+}
+.user-email-label { font-size: 13px; color: #888; }
+
+/* ===== カテゴリー一覧画面 ===== */
+.category-list-chips {
+  display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;
+}
+.category-chip {
+  padding: 8px 16px; border-radius: 20px;
+  font-size: 13px; font-weight: bold; cursor: pointer;
+  border: 2px solid transparent; color: #444;
+  transition: all 0.15s;
+}
+.category-chip.active { border-color: #555; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+.add-category-center { display: flex; justify-content: center; margin-top: 14px; }
+
+.back-to-list-btn { display: block; margin-bottom: 10px; }
+
+.category-form-box {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: #fff; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+.category-form-box input {
+  padding: 8px 10px; border: 1px solid #e0ddd8; border-radius: 8px;
+  font-size: 14px; min-width: 200px;
+}
+.color-picker { display: flex; gap: 6px; }
+.color-swatch {
+  width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+  border: 2px solid transparent;
+}
+.color-swatch.selected { border-color: #555; }
+
+.category-form-box {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: #fff; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+.category-form-box input {
+  padding: 8px 10px; border: 1px solid #e0ddd8; border-radius: 8px;
+  font-size: 14px; min-width: 200px;
+}
+.color-picker { display: flex; gap: 6px; }
+.color-swatch {
+  width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+  border: 2px solid transparent;
+}
+.color-swatch.selected { border-color: #555; }
+
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 70px 20px;
+  background: #fff; border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  margin-top: 8px;
+}
+.empty-state-icon { font-size: 40px; margin-bottom: 10px; }
+.empty-state-title { font-family: Georgia, serif; font-size: 20px; color: #555; margin-bottom: 6px; }
+.empty-state-sub { font-size: 13px; color: #aaa; margin-bottom: 22px; max-width: 380px; }
+.add-btn-big {
+  padding: 14px 32px; border: none; border-radius: 30px;
+  background: #f3b6b7; color: #5a1a1a; font-size: 16px; font-weight: bold;
+  font-family: inherit; cursor: pointer; box-shadow: 0 3px 10px rgba(0,0,0,0.12);
+  transition: background 0.15s, transform 0.1s;
+}
+.add-btn-big:hover { background: #ea9a9b; transform: translateY(-1px); }
+
+.category-form-error { font-size: 12px; color: #d07070; width: 100%; min-height: 14px; }
+
+/* ===== タブバー（既存perfect.cssと同じ見た目） ===== */
+.tab-container {
+  display: flex; width: 100%; gap: 5px;
+  border-bottom: 2px solid #e0e0d8; margin-bottom: 20px;
+}
+.tab-item {
+  display: flex; align-items: center; justify-content: center;
+  flex: 1 1 0; min-width: 0; padding: 12px 8px;
+  font-size: 16px; font-family: Georgia, serif;
+  text-align: center; text-decoration: none; color: #555;
+  border-radius: 4px 4px 0 0;
+  box-shadow: 0 -2px 5px rgba(0,0,0,0.05);
+  transition: all 0.2s ease;
+}
+.tab-goal      { background-color: #f3b6b7; }
+.tab-todo      { background-color: #fef5c1; }
+.tab-time      { background-color: #ebd0b3; }
+.tab-opinion   { background-color: #c3bad3; }
+.tab-calendar  { background-color: #cee3be; }
+.tab-ai        { background-color: #e4b8cf; }
+.tab-item.active {
+  position: relative; font-weight: bold;
+  transform: translateY(2px); box-shadow: 0 2px 0 #c8c7c6;
+}
+
+/* ===== レイアウト（左メンバー／右コンテンツ） ===== */
+.cal-layout { display: grid; grid-template-columns: 280px 1fr; gap: 28px; align-items: start; }
+@media (max-width: 900px) { .cal-layout { grid-template-columns: 1fr; } }
+
+.side-panel {
+  background: #fff; border-radius: 16px; padding: 20px 22px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  display: flex; flex-direction: column; gap: 16px;
+}
+.side-card-title {
+  font-family: Georgia, serif; font-size: 17px; font-weight: normal;
+  color: #555; padding-bottom: 8px; border-bottom: 2px solid #FFF4B3;
+}
+.member-list { display: flex; flex-direction: column; gap: 10px; }
+.member-row { display: flex; align-items: center; gap: 10px; }
+.member-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 13px; font-weight: bold; flex-shrink: 0;
+}
+.member-email { font-size: 13px; color: #444; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.member-you { color: #999; font-size: 11px; margin-left: 4px; }
+
+.invite-box, .share-box, .danger-box { display: flex; flex-direction: column; gap: 8px; }
+.invite-msg { font-size: 12px; color: #6a9a6a; min-height: 14px; }
+.share-hint, .danger-hint { font-size: 11px; color: #aaa; }
+.danger-box { padding-top: 8px; border-top: 1px dashed #eee; }
+
+.content-area {
+  background: #fdfbf7; border-radius: 16px; padding: 24px 28px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04); min-height: 420px;
+}
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.page-title { font-family: Georgia, serif; font-size: 28px; font-weight: normal; color: #555; margin-bottom: 16px; }
+.section-title { font-family: Georgia, serif; font-size: 18px; font-weight: normal; color: #555; margin: 20px 0 8px; }
+
+.goal-box {
+  width: 100%; min-height: 110px; background: #e2e2e2; border: none;
+  border-radius: 8px; padding: 14px; font-size: 14px; font-family: inherit;
+  color: #333; resize: vertical;
+}
+.info-box {
+  width: 100%; min-height: 70px; background: #fdf9f5; border: 1px solid #e0ddd8;
+  border-radius: 8px; padding: 12px 14px; font-size: 14px; font-family: inherit;
+  color: #333; resize: vertical;
+}
+.goal-box:focus, .info-box:focus {
+  outline: none; box-shadow: 0 0 0 3px rgba(166,216,228,0.25);
+}
+.saved-label { font-size: 12px; color: #aaa; margin-top: 6px; height: 14px; }
+
+.placeholder-note { font-size: 14px; color: #aaa; padding: 30px 0; text-align: center; }
+
+.embedded-page { width: 100%; min-height: 640px; border: none; border-radius: 12px; }
