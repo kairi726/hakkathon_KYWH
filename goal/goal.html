@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Goal</title>
+  <link rel="stylesheet" href="goal.css" />
+  <script src="goal.js" defer></script>
+</head>
+<body>
+  <div class="layout">
+
+    <main class="main">
+      <aside class="sidebar">
+        <section class="panel members-panel">
+          <h2>チームメンバー</h2>
+          <ul class="member-list" id="memberList"></ul>
+        </section>
+      </aside>
+
+      <section class="content">
+        <section class="panel goal-panel">
+          <div class="panel-head">
+            <h2>Goal</h2>
+            <span class="panel-label">課題のゴール</span>
+          </div>
+          <p class="goal-text">プロジェクトの目的をチーム全員が共通認識として持つため、課題のゴールを明確に示します。</p>
+        </section>
+
+        <section class="panel info-panel">
+          <h2>Information</h2>
+          <p>課題に対する目標</p>
+          <ul class="info-list">
+            <li>機能要件を満たすUI/UXを実装する</li>
+            <li>メンバーごとの作業負荷を可視化する</li>
+            <li>期日までに効率的に役割分担を行う</li>
+          </ul>
+        </section>
+
+        <section class="panel score-panel">
+          <div class="panel-head">
+            <h2>タスク量による負荷スコア</h2>
+            <span class="panel-label">誰が何％の作業を担当しているか</span>
+          </div>
+          <div class="score-body">
+            <div class="chart-card">
+              <canvas id="taskChart" width="320" height="320" aria-label="タスク負荷円グラフ"></canvas>
+              <div class="chart-caption">タスク数に応じた負荷割合を円グラフで表示</div>
+            </div>
+            <div class="chart-meta">
+              <div class="summary-card">
+                <p>タスク総数</p>
+                <strong id="totalTasks">0</strong>
+              </div>
+              <div class="legend-card">
+                <h3>メンバー別割合</h3>
+                <ul class="legend-list" id="taskLegend"></ul>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
