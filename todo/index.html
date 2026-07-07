@@ -8,24 +8,10 @@
 </head>
 <body>
 
-  <nav class="tab-container">
-    <a href="#" class="tab-item tab-goal" data-tab="goal">Goal</a>
-    <a href="#" class="tab-item tab-todo active" data-tab="todo">To do</a>
-    <a href="#" class="tab-item tab-time" data-tab="time">Time</a>
-    <a href="#" class="tab-item tab-opinion" data-tab="opinion">Opinion</a>
-    <a href="#" class="tab-item tab-calendar" data-tab="calendar">Calendar</a>
-    <a href="#" class="tab-item tab-ai" data-tab="ai">AI Asistant</a>
-  </nav>
-
   <main class="content-container">
     <h1 class="page-title">Project Dashboard</h1>
 
-    <section class="tab-content" data-tab="goal">
-      <h2>Goal</h2>
-      <p>目標の管理エリア（プレースホルダ）</p>
-    </section>
-
-    <section class="tab-content active" data-tab="todo">
+    <section class="todo-section">
       <div class="todo-table">
         <form id="todo-form" class="todo-form">
           <input id="task-input" type="text" placeholder="タスク名" required>
@@ -49,27 +35,6 @@
         <div id="todo-list-container"></div>
       </div>
     </section>
-
-    <section class="tab-content" data-tab="time">
-      <h2>Time</h2>
-      <p>時間管理エリア（プレースホルダ）</p>
-    </section>
-
-    <section class="tab-content" data-tab="opinion">
-      <h2>Opinion</h2>
-      <p>意見・メモ（プレースホルダ）</p>
-    </section>
-
-    <section class="tab-content" data-tab="calendar">
-      <h2>Calendar</h2>
-      <p>カレンダー（プレースホルダ）</p>
-    </section>
-
-    <section class="tab-content" data-tab="ai">
-      <h2>AI Assistant</h2>
-      <p>AI支援エリア（プレースホルダ）</p>
-    </section>
-    
   </main>
 
   <script src="script.js"></script>
