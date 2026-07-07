@@ -13,11 +13,7 @@ async function loadState(){
     notes = [];
   }
   render();
-
-  try{
-    const memoRes = await window.storage.get('idea-memo', true);
-    if(memoRes) document.getElementById('memo').value = memoRes.value;
-  }catch(e){}
+  await loadMemo();
 }
 
 async function saveNotes(){
@@ -236,16 +232,173 @@ composerSave.onclick = async () => {
 
 const memoEl = document.getElementById('memo');
 const memoHint = document.getElementById('memoHint');
+
+// ツールバーボタンのコマンド実行
+document.querySelectorAll('.memo-btn:not(.memo-text-color-btn):not(.memo-highlight-btn)').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    const command = btn.getAttribute('data-command');
+    if(command === 'createLink'){
+      const url = prompt('URLを入力:');
+      if(url) document.execCommand('createLink', false, url);
+    } else {
+      document.execCommand(command);
+    }
+  });
+});
+
+// 文字色ボタン
+document.querySelector('.memo-text-color-btn').addEventListener('click', (e) => {
+  e.preventDefault();
+  const palette = document.getElementById('textColorPalette');
+  palette.style.display = palette.style.display === 'flex' ? 'none' : 'flex';
+});
+
+// マーカーボタン
+document.querySelector('.memo-highlight-btn').addEventListener('click', (e) => {
+  e.preventDefault();
+  const palette = document.getElementById('highlightColorPalette');
+  palette.style.display = palette.style.display === 'flex' ? 'none' : 'flex';
+});
+
+// 文字色選択
+document.querySelectorAll('#textColorPalette .memo-color-option').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    const color = btn.getAttribute('data-color');
+    document.execCommand('foreColor', false, color);
+    
+    // 前の選択状態を削除
+    document.querySelectorAll('#textColorPalette .memo-color-option').forEach(b => b.classList.remove('active'));
+    // 新しい選択状態を追加
+    btn.classList.add('active');
+    
+    btn.parentElement.style.display = 'none';
+    updateTextColorButton(color);
+  });
+});
+
+// マーカー色選択
+document.querySelectorAll('#highlightColorPalette .memo-color-option').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    const color = btn.getAttribute('data-color');
+    document.execCommand('backColor', false, color);
+    
+    // 前の選択状態を削除
+    document.querySelectorAll('#highlightColorPalette .memo-color-option').forEach(b => b.classList.remove('active'));
+    // 新しい選択状態を追加
+    btn.classList.add('active');
+    
+    btn.parentElement.style.display = 'none';
+    updateHighlightButton(color);
+  });
+});
+
+function updateTextColorButton(color){
+  const btn = document.querySelector('.memo-text-color-btn');
+  btn.style.color = color;
+}
+
+function updateHighlightButton(color){
+  const btn = document.querySelector('.memo-highlight-btn');
+  btn.style.textShadow = `0 0 0 2px ${color}`;
+}
+
+// パレット外クリックで閉じる
+document.addEventListener('click', (e) => {
+  if(!e.target.closest('.memo-color-group')){
+    document.getElementById('textColorPalette').style.display = 'none';
+    document.getElementById('highlightColorPalette').style.display = 'none';
+  }
+});
+
+// 保存機能
 memoEl.addEventListener('input', () => {
   clearTimeout(memoTimer);
   memoHint.textContent = '';
   memoTimer = setTimeout(async () => {
     try{
-      await window.storage.set('idea-memo', memoEl.value, true);
+      const html = memoEl.innerHTML;
+      await window.storage.set('idea-memo', html, true);
       memoHint.textContent = '保存しました';
       setTimeout(() => memoHint.textContent = '', 1500);
     }catch(e){}
   }, 500);
 });
 
+async function loadMemo(){
+  try{
+    const memoRes = await window.storage.get('idea-memo', true);
+    if(memoRes){
+      memoEl.innerHTML = memoRes.value;
+    }
+  }catch(e){}
+}
+
 loadState();
+
+const memoEditor = document.getElementById('memo');
+const toolbarButtons = document.querySelectorAll('.memo-btn[data-command]');
+
+// 太字/イタリック/下線/リストの現在の状態をチェックして枠線ON/OFF
+function updateToolbarState(){
+  toolbarButtons.forEach(btn => {
+    const cmd = btn.dataset.command;
+    if(['bold','italic','underline','insertUnorderedList'].includes(cmd)){
+      try{
+        btn.classList.toggle('active', document.queryCommandState(cmd));
+      }catch(e){}
+    }
+  });
+}
+
+// 選択位置が変わるたびに状態を更新
+document.addEventListener('selectionchange', () => {
+  if(document.activeElement === memoEditor || memoEditor.contains(document.activeElement)){
+    updateToolbarState();
+  }
+});
+memoEditor.addEventListener('keyup', updateToolbarState);
+memoEditor.addEventListener('mouseup', updateToolbarState);
+
+// 各ボタンをクリックした時の処理
+toolbarButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const cmd = btn.dataset.command;
+    if(cmd === 'createLink'){
+      const url = prompt('リンク先のURLを入力してください');
+      if(url) document.execCommand('createLink', false, url);
+    }else{
+      document.execCommand(cmd, false, null);
+    }
+    memoEditor.focus();
+    updateToolbarState();
+  });
+});
+
+// 文字色 / マーカーのパレット共通処理
+function setupColorGroup(toggleSelector, paletteSelector, command){
+  const toggleBtn = document.querySelector(toggleSelector);
+  const palette = document.querySelector(paletteSelector);
+  const options = palette.querySelectorAll('.memo-color-option');
+
+  options.forEach(opt => {
+    opt.addEventListener('click', () => {
+      const color = opt.dataset.color;
+      document.execCommand(command, false, color);
+
+      // 選んだ色だけactiveにする
+      options.forEach(o => o.classList.remove('active'));
+      opt.classList.add('active');
+
+      // トグルボタン(A / 🖍)自体にも選んだ色のリングをつける
+      toggleBtn.style.boxShadow = `0 0 0 2px ${color}`;
+
+      memoEditor.focus();
+    });
+  });
+}
+
+setupColorGroup('.memo-text-color-btn', '#textColorPalette', 'foreColor');
+setupColorGroup('.memo-highlight-btn', '#highlightColorPalette', 'hiliteColor');
