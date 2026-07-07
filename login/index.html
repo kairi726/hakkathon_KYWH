@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>会員登録・新規登録</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="auth-card">
+    <div class="auth-header">
+      <p class="eyebrow">Welcome</p>
+      <h1 id="form-title">新規登録</h1>
+      <p id="form-description">アカウントを作成して、サービスを始めましょう。</p>
+    </div>
+
+    <div class="toggle" role="tablist" aria-label="認証切り替え">
+      <button class="toggle-btn active" type="button" data-mode="login">会員登録</button>
+      <button class="toggle-btn" type="button" data-mode="signup">新規登録</button>
+    </div>
+
+    <form id="auth-form" class="auth-form">
+      <div class="field-group" id="name-group">
+        <label for="name">お名前</label>
+        <input id="name" name="name" type="text" placeholder="山田 太郎" required>
+      </div>
+
+      <div class="field-group">
+        <label for="email">メールアドレス</label>
+        <input id="email" name="email" type="email" placeholder="example@email.com" required>
+      </div>
+
+      <div class="field-group">
+        <label for="password">パスワード</label>
+        <input id="password" name="password" type="password" placeholder="8文字以上" required>
+      </div>
+
+      <div class="field-group" id="confirm-group">
+        <label for="confirm-password">パスワード確認</label>
+        <input id="confirm-password" name="confirm-password" type="password" placeholder="もう一度入力してください">
+      </div>
+
+      <div class="field-group color-group hidden" id="color-group">
+        <label for="favorite-color">自分の色を選ぶ</label>
+        <div class="color-picker-row">
+          <input id="favorite-color" name="favorite-color" type="color" value="#c8f7c5" aria-label="好きな色">
+          <span class="color-preview" id="color-preview" aria-hidden="true"></span>
+          <span class="color-help" id="color-help">登録後にお好みの色を選べます。</span>
+        </div>
+        <div class="color-palette" role="list" aria-label="おすすめカラー">
+          <button type="button" class="color-swatch" data-color="#ffcfda" style="background:#ffcfda" aria-label="パステルピンク"></button>
+          <button type="button" class="color-swatch" data-color="#fff5b7" style="background:#fff5b7" aria-label="パステルイエロー"></button>
+          <button type="button" class="color-swatch" data-color="#c8f7c5" style="background:#c8f7c5" aria-label="パステルグリーン"></button>
+          <button type="button" class="color-swatch" data-color="#e9d5ff" style="background:#e9d5ff" aria-label="パステルパープル"></button>
+          <button type="button" class="color-swatch" data-color="#cffafe" style="background:#cffafe" aria-label="パステルシアン"></button>
+          <button type="button" class="color-swatch" data-color="#ffd6f0" style="background:#e5aad2" aria-label="パステルピンク2"></button>
+        </div>
+        <div style="margin-top:10px">
+          <button type="button" id="confirm-color-btn" class="confirm-color-btn">色を決定</button>
+        </div>
+      </div>
+
+      <button class="submit-btn" type="submit" id="submit-btn">新規登録する</button>
+      <p class="form-message" id="form-message" aria-live="polite"></p>
+    </form>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
