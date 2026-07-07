@@ -16,7 +16,7 @@
 *{box-sizing:border-box;}
 body{
   margin:0;
-  
+  font-family:"Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif;
   color:var(--ink);
   padding:32px 20px 80px;
 }
