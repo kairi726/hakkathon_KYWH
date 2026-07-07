@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Idea Board</title>
+<link rel="stylesheet" href="opinion.css">
+</head>
+<body>
+<div class="wrap">
+  <h1 class="board-title">Idea Board</h1>
+  <p class="board-sub">思いついたことを付箋に書いて、みんなでリアクション・コメントしよう</p>
+  <p class="shared-note">※ 付箋とリアクションはこのページを開いた全員に共有されます</p>
+
+  <div class="columns">
+    <div>
+      <p class="col-heading"><span class="dot"></span>idea</p>
+      <div class="notes" id="notes"></div>
+      <div class="composer" id="composer" style="display:none;">
+        <div class="composer-title">新しいアイデア</div>
+        <div class="composer-editor" id="composerEditor" contenteditable="true" spellcheck="true" data-placeholder="ここに書いてください。絵文字も自由に使えます ✨"></div>
+        <div class="composer-actions">
+          <button class="composer-cancel" id="composerCancel" type="button">キャンセル</button>
+          <button class="composer-save" id="composerSave" type="button">追加</button>
+        </div>
+      </div>
+      <div class="add-note" id="addNoteBtn" style="margin-top:14px;">＋ 追加</div>
+    </div>
+
+    <div>
+      <p class="col-heading">Memo</p>
+      <div class="memo-panel">
+        <textarea id="memo" placeholder="自由に書ける"></textarea>
+        <div class="save-hint" id="memoHint"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="opinion.js"></script>
+</body>
+</html>
