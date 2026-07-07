@@ -391,3 +391,10 @@ body{
 .memo-color-option.active{
   box-shadow:0 0 0 2px #333, 0 0 0 4px #fff;
 }
+
+/* メモ帳の中のリンクにマウスが乗ったら、ポインター（手）にする */
+.memo-editor a {
+    cursor: pointer;
+    color: #2563eb; /* 好みの青色に調整してください */
+    text-decoration: underline;
+}
