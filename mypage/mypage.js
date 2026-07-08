@@ -473,8 +473,10 @@ function showTabPanel(tabName) {
     p.classList.toggle('active', isActive);
     const iframe = p.querySelector('iframe.embedded-page');
     if (iframe) {
-      const base = EMBED_PAGES[tabName];
-      const src = base && selectedCategoryId ? base + '?category=' + encodeURIComponent(selectedCategoryId) : base;
+      const base = EMBED_PAGES[tabName] || iframe.getAttribute('src');
+      const src = base && selectedCategoryId && !base.includes('goal.html')
+        ? base + '?category=' + encodeURIComponent(selectedCategoryId)
+        : base;
       if (isActive && src) {
         if (iframe.dataset.loadedSrc !== src) {
           iframe.src = src;

@@ -180,14 +180,23 @@ body {
   margin-top: 16px;
   font-size: 1rem;
 }
-.info-list {
-  display: grid;
-  gap: 10px;
-  padding-left: 18px;
-  margin-top: 14px;
+.goal-info-editor {
+  width: 100%;
+  min-height: 160px;
+  border: 1px solid #e0ddd8;
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #333;
+  background: #fcfaf7;
+  resize: vertical;
+  font-family: inherit;
 }
-.info-list li {
-  list-style-type: disc;
+.goal-info-editor:focus {
+  outline: none;
+  border-color: #c9b7a8;
+  box-shadow: 0 0 0 3px rgba(201, 183, 168, 0.2);
 }
 .score-body {
   display: grid;

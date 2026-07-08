@@ -28,10 +28,17 @@ function loadTodos() {
 
 function getMemberColor(name, index) {
   const currentUser = loadStoredUser();
-  if (currentUser && currentUser.name && name === currentUser.name) {
+  const normalizedName = (name || '').trim();
+
+  if (currentUser && currentUser.name && normalizedName === currentUser.name) {
     return currentUser.favoriteColor || COLOR_PALETTE[index % COLOR_PALETTE.length];
   }
-  return COLOR_PALETTE[index % COLOR_PALETTE.length];
+
+  if (normalizedName === '未定') {
+    return '#d9d9d9';
+  }
+
+  return COLOR_PALETTE[(index + 1) % COLOR_PALETTE.length];
 }
 
 function buildMembers() {
@@ -68,6 +75,7 @@ function buildMembers() {
 }
 
 function renderMembers() {
+  if (!memberList) return;
   memberList.innerHTML = '';
   members.forEach(member => {
     const item = document.createElement('li');
@@ -84,6 +92,7 @@ function renderMembers() {
 }
 
 function renderLegend(total) {
+  if (!taskLegend) return;
   taskLegend.innerHTML = '';
   members.forEach(member => {
     const percent = total > 0 ? Math.round((member.count / total) * 100) : 0;
@@ -146,9 +155,9 @@ function drawChart(total) {
 function init() {
   members = buildMembers();
   const total = members.reduce((sum, member) => sum + member.count, 0);
-  renderMembers();
-  renderLegend(total);
-  totalTasksEl.textContent = total;
+  if (memberList) renderMembers();
+  if (taskLegend) renderLegend(total);
+  if (totalTasksEl) totalTasksEl.textContent = total;
   drawChart(total);
 }
 

@@ -80,10 +80,13 @@ todoForm.addEventListener('submit', (e) => {
   const assigneeInput = document.getElementById('assignee-input');
   const statusInput = document.getElementById('status-input');
 
+  const currentUser = JSON.parse(localStorage.getItem('tb_current_user') || 'null');
+  const assigneeName = (assigneeInput.value || '').trim() || (currentUser?.name || '未定');
+
   const newTodo = {
     id: Date.now(), // 簡易的なユニークID
     task: taskInput.value,
-    assignee: assigneeInput.value || '未定',
+    assignee: assigneeName,
     status: statusInput.value
   };
 
