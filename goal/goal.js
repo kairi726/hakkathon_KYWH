@@ -1,5 +1,14 @@
+// このページはmypage.jsからiframeで埋め込まれ、
+// ?category=カテゴリーID というクエリパラメータが付けて渡されてくる。
+// 以前は mypage.js の EMBED_PAGES に 'goal' が登録されておらず、
+// このページだけ ?category= が渡されないまま常に同じキーを見ていたため、
+// カテゴリーを切り替えても円グラフの中身が変わらなかった。
+// todo/script.js と同じ組み立て方でキーを作ることで、Todoの内容と一致させる。
+const params = new URLSearchParams(location.search);
+const CATEGORY_ID = params.get('category') || 'default';
+
 const USER_KEY = 'tb_current_user';
-const TODO_STORAGE_KEY = 'todo-items';
+const TODO_STORAGE_KEY = 'todo-items-' + CATEGORY_ID;
 const COLOR_PALETTE = ['#ffcfda', '#fff5b7', '#c8f7c5', '#e9d5ff', '#cffafe', '#9cd0d8'];
 
 let members = [];
@@ -18,6 +27,17 @@ function loadStoredUser() {
   }
 }
 
+// アカウント(メールアドレス)ごとに保存されているプロフィール(名前・お気に入りの色)を読む。
+// mypage.js側の tb_profile_<email> と同じキーの作り方に合わせてある。
+function loadUserProfile(email) {
+  if (!email) return null;
+  try {
+    return JSON.parse(localStorage.getItem('tb_profile_' + email.trim().toLowerCase())) || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 function loadTodos() {
   try {
     return JSON.parse(localStorage.getItem(TODO_STORAGE_KEY)) || [];
@@ -31,7 +51,11 @@ function getMemberColor(name, index) {
   const normalizedName = (name || '').trim();
 
   if (currentUser && currentUser.name && normalizedName === currentUser.name) {
-    return currentUser.favoriteColor || COLOR_PALETTE[index % COLOR_PALETTE.length];
+    // 自分自身の場合は、最新のプロフィールに保存されている色を優先する
+    // （currentUser.favoriteColorがログイン時点のキャッシュなのに対し、
+    //   プロフィールは「色を決定」ボタンを押すたびに更新されるため）
+    const profile = loadUserProfile(currentUser.email);
+    return (profile && profile.favoriteColor) || currentUser.favoriteColor || COLOR_PALETTE[index % COLOR_PALETTE.length];
   }
 
   if (normalizedName === '未定') {
@@ -44,12 +68,13 @@ function getMemberColor(name, index) {
 function buildMembers() {
   const currentUser = loadStoredUser();
   const currentUserName = currentUser?.name || 'あなた';
+  const currentUserProfile = currentUser ? loadUserProfile(currentUser.email) : null;
   const memberMap = new Map();
 
   memberMap.set(currentUserName, {
     name: currentUserName,
     count: 0,
-    color: currentUser?.favoriteColor || COLOR_PALETTE[0],
+    color: (currentUserProfile && currentUserProfile.favoriteColor) || currentUser?.favoriteColor || COLOR_PALETTE[0],
   });
 
   loadTodos().forEach((todo, index) => {

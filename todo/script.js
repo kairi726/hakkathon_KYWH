@@ -1,4 +1,11 @@
-const TODO_STORAGE_KEY = 'todo-items';
+// このページはmypage.jsからiframeで埋め込まれ、
+// ?category=カテゴリーID というクエリパラメータが付けて渡されてくる。
+// 以前はこのパラメータを一切見ておらず、TODO_STORAGE_KEYが
+// 'todo-items' という固定の1つのキーだったため、
+// 別のカテゴリーを開いても同じTodoリストが表示されてしまっていた。
+const params = new URLSearchParams(location.search);
+const CATEGORY_ID = params.get('category') || 'default';
+const TODO_STORAGE_KEY = 'todo-items-' + CATEGORY_ID;
 
 function loadTodos() {
   try {
@@ -46,7 +53,7 @@ function renderTodos() {
     group.tasks.forEach((todo) => {
       const row = document.createElement('div');
       row.className = 'table-row' + (todo.status === 'completed' ? ' completed' : '');
-      
+
       const statusInfo = statusMap[todo.status];
 
       row.innerHTML = `
@@ -129,4 +136,3 @@ window.updateStatus = function(id, newStatus) {
 
 // 初回描画
 renderTodos();
-

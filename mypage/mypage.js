@@ -35,11 +35,41 @@ function loadStoredUser() {
 function saveStoredUser(u) { try { localStorage.setItem(USER_KEY, JSON.stringify(u)); } catch { /* ignore */ } }
 let currentUser = loadStoredUser(); // { name, email, favoriteColor } または null
 
+// ------------------------------------------------------------
+// アカウント（メールアドレス）ごとのプロフィール保存
+// ------------------------------------------------------------
+// 以前は「名前」がどこにも保存されず、「お気に入りの色」も
+// 全アカウント共通の1つのキー(favoriteColor)に保存されていたため、
+// ログアウトして別アカウントでログインしても前の人の色が残ったり、
+// 名前が常にメールアドレス由来の文字列になってしまっていた。
+// これを避けるため、プロフィールはメールアドレスごとに分けて保存する。
+// ------------------------------------------------------------
+function profileKey(email) {
+  return 'tb_profile_' + (email || '').trim().toLowerCase();
+}
+function loadUserProfile(email) {
+  if (!email) return null;
+  try { return JSON.parse(localStorage.getItem(profileKey(email))) || null; } catch { return null; }
+}
+function saveUserProfile(email, data) {
+  if (!email) return null;
+  const merged = Object.assign({}, loadUserProfile(email) || {}, data);
+  try { localStorage.setItem(profileKey(email), JSON.stringify(merged)); } catch { /* ignore */ }
+  return merged;
+}
+
+// 新規登録の途中（まだログインしていない状態）で色を選んでいるとき、
+// どのメールアドレスのプロフィールに保存すればいいかを覚えておくための変数
+let pendingSignupEmail = null;
+
 // カテゴリー用パステルカラー（既存タブ配色に合わせる）
 const CATEGORY_COLORS = ['#f3b6b7', '#fef5c1', '#ebd0b3', '#c3bad3', '#cee3be', '#e4b8cf'];
 
 // 埋め込みページ（相対パス。mypage/ から見た位置）
+// ※ 以前は 'goal' がこの一覧に無かったため、Goalタブだけ ?category= が
+//   渡らず、常に固定の src="../goal/goal.html" のままだった。
 const EMBED_PAGES = {
+  goal: '../goal/goal.html',
   todo: '../todo/index.html',
   calendar: '../calender/calender.html',
   opinion: '../opinion/opinion.html',
@@ -59,9 +89,7 @@ function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'
 const pendingJoinId = new URLSearchParams(location.search).get('join');
 
 // ============================================================
-// ログイン画面のロジック（元のlogin/script.jsの内容をそのまま移植。
-// 見た目・項目・色選択の流れは変えていない。違うのは最後だけ：
-// 別ページへ遷移する代わりに、この場でアプリ画面に切り替える）
+// ログイン画面のロジック
 // ============================================================
 const toggleButtons = document.querySelectorAll('.toggle-btn');
 const formTitle = document.getElementById('form-title');
@@ -78,18 +106,6 @@ const colorHelp = document.getElementById('color-help');
 const swatches = document.querySelectorAll('.color-swatch');
 let colorSelectionReady = false;
 const confirmColorBtn = document.getElementById('confirm-color-btn');
-
-function initSavedColor() {
-  try {
-    const saved = localStorage.getItem('favoriteColor');
-    if (saved) {
-      colorInput.value = saved;
-      updateColorPreview();
-    }
-  } catch (e) {
-    // localStorage unavailable — ignore
-  }
-}
 
 function updateColorPreview() {
   const color = colorInput.value;
@@ -118,10 +134,19 @@ function setMode(mode) {
   // 隠れている項目にrequiredが残っていると、ブラウザが「必須なのにフォーカスできない」
   // 判定でフォーム送信自体をブロックしてしまうため、表示状態に合わせて付け外しする
   document.getElementById('name').required = isSignup;
+
+  if (!isSignup) {
+    // ログイン画面に戻ったら、色選択は次のログイン/登録まで一旦リセット
+    colorSelectionReady = false;
+    colorGroup.classList.add('hidden');
+  }
 }
 
 toggleButtons.forEach((button) => {
-  button.addEventListener('click', () => setMode(button.dataset.mode));
+  button.addEventListener('click', () => {
+    pendingSignupEmail = null;
+    setMode(button.dataset.mode);
+  });
 });
 
 swatches.forEach((button) => {
@@ -133,27 +158,38 @@ swatches.forEach((button) => {
 
 confirmColorBtn.addEventListener('click', () => {
   const selected = colorInput.value;
-  try {
-    localStorage.setItem('favoriteColor', selected);
-  } catch (e) {
-    console.warn('localStorage unavailable', e);
+  const targetEmail = pendingSignupEmail || (currentUser && currentUser.email);
+
+  if (!targetEmail) {
+    formMessage.style.color = '#b91c1c';
+    formMessage.textContent = '先にメールアドレスを入力してください。';
+    return;
   }
+
+  saveUserProfile(targetEmail, { favoriteColor: selected });
+
+  // すでにログイン中で、自分自身の色を変更した場合はその場にも反映する
+  if (currentUser && currentUser.email === targetEmail) {
+    currentUser.favoriteColor = selected;
+    saveStoredUser(currentUser);
+  }
+
   formMessage.style.color = '#0f766e';
   formMessage.textContent = '色を保存しました。';
 });
 
 colorInput.addEventListener('input', updateColorPreview);
 updateColorPreview();
-initSavedColor();
 
 // ログイン成功時：ページ遷移せず、その場でアプリ画面に切り替える
-function completeLogin(name, email) {
-  let favoriteColor = null;
-  try { favoriteColor = localStorage.getItem('favoriteColor'); } catch (e) { /* ignore */ }
+function completeLogin(nameFromForm, email) {
+  const profile = loadUserProfile(email) || {};
+  const name = profile.name || nameFromForm || (email ? email.split('@')[0] : '');
+
   currentUser = {
-    name: name || (email ? email.split('@')[0] : ''),
+    name,
     email: email || '',
-    favoriteColor: favoriteColor || null,
+    favoriteColor: profile.favoriteColor || null,
   };
   saveStoredUser(currentUser);
   document.getElementById('login-screen').style.display = 'none';
@@ -176,14 +212,33 @@ authForm.addEventListener('submit', (event) => {
   formMessage.style.color = '#0f766e';
 
   if (isSignup) {
-    // After signup, clear the login fields so they don't carry over
+    const name = document.getElementById('name').value.trim();
+    const email = document.getElementById('email').value.trim();
+
+    if (!name) {
+      formMessage.style.color = '#b91c1c';
+      formMessage.textContent = 'お名前を入力してください。';
+      return;
+    }
+    if (!email) {
+      formMessage.style.color = '#b91c1c';
+      formMessage.textContent = 'メールアドレスを入力してください。';
+      return;
+    }
+
+    // ここで名前をこのメールアドレスのプロフィールとして保存する。
+    // 以前はここで何も保存していなかったため、名前が常に空扱いになっていた。
+    saveUserProfile(email, { name });
+    pendingSignupEmail = email;
+
     authForm.reset();
-    initSavedColor();
     colorSelectionReady = true;
     colorGroup.classList.remove('hidden');
     updateColorPreview();
-    formMessage.textContent = '新規登録が完了しました。会員登録に進めます。';
+    formMessage.textContent = '新規登録が完了しました。よろしければ色も選んでから、ログインへ進んでください。';
     setMode('login');
+    // ログイン画面でメールを入力し直す手間を減らすため、メールだけ復元しておく
+    document.getElementById('email').value = email;
     return;
   }
 
@@ -191,14 +246,10 @@ authForm.addEventListener('submit', (event) => {
   const email = document.getElementById('email').value.trim();
   const nameValue = document.getElementById('name').value.trim(); // ログイン画面では入力欄が隠れているため空のことが多い
 
-  let saved = null;
-  try {
-    saved = localStorage.getItem('favoriteColor');
-  } catch (e) {
-    /* ignore */
-  }
-
-  if (!saved) {
+  const existingProfile = loadUserProfile(email);
+  if (!existingProfile || !existingProfile.favoriteColor) {
+    // まだ色を選んだことが無いアカウントなら、ログイン後すぐ選べるようにしておく
+    pendingSignupEmail = email;
     colorSelectionReady = true;
     colorGroup.classList.remove('hidden');
     updateColorPreview();
@@ -216,6 +267,7 @@ document.getElementById('logout-btn').addEventListener('click', () => {
   if (unsubCategoryDoc) unsubCategoryDoc();
   if (unsubGoalDoc) unsubGoalDoc();
   currentUser = null;
+  pendingSignupEmail = null;
   localStorage.removeItem(USER_KEY);
   document.getElementById('app-screen').style.display = 'none';
   authForm.reset();
@@ -314,15 +366,18 @@ function subscribeSelectedCategory() {
     const data = doc.data() || {};
     const textEl = document.getElementById('goal-text');
     const infoEl = document.getElementById('goal-info');
-    if (document.activeElement !== textEl) textEl.value = data.text || '';
-    if (document.activeElement !== infoEl) infoEl.value = data.info || '';
+    if (textEl && document.activeElement !== textEl) textEl.value = data.text || '';
+    if (infoEl && document.activeElement !== infoEl) infoEl.value = data.info || '';
   });
 }
 
 function renderMembers(emails) {
   const box = document.getElementById('member-list');
+  if (!box) return;
   box.innerHTML = emails.map((email, i) => {
-    const color = CATEGORY_COLORS[i % CATEGORY_COLORS.length];
+    // 自分自身については、アカウントごとに保存してあるお気に入りの色を優先して使う
+    const profile = loadUserProfile(email);
+    const color = (profile && profile.favoriteColor) || CATEGORY_COLORS[i % CATEGORY_COLORS.length];
     const initial = email.trim()[0]?.toUpperCase() || '?';
     const isYou = currentUser && email === currentUser.email;
     return `<div class="member-row">
@@ -450,8 +505,10 @@ function scheduleGoalSave() {
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
     const label = document.getElementById('goal-saved-label');
-    label.textContent = '保存しました';
-    setTimeout(() => { if (label.textContent === '保存しました') label.textContent = ''; }, 2000);
+    if (label) {
+      label.textContent = '保存しました';
+      setTimeout(() => { if (label.textContent === '保存しました') label.textContent = ''; }, 2000);
+    }
   }, 600);
 }
 const goalTextEl = document.getElementById('goal-text');
@@ -463,8 +520,9 @@ if (goalInfoEl) goalInfoEl.addEventListener('input', scheduleGoalSave);
 const tabs = document.querySelectorAll('.tab-item[data-tab]');
 const panels = document.querySelectorAll('.tab-panel');
 
-// カテゴリーごとにTo do/Calendarの中身が混ざらないよう、埋め込みページには
-// ?category=カテゴリーID を付けて渡す（todo/calenderページ側もこのIDでデータを分ける）
+// カテゴリーごとにGoal/To do/Opinion/Calendarの中身が混ざらないよう、埋め込みページには
+// ?category=カテゴリーID を必ず付けて渡す（以前はGoalタブだけ意図的に除外されていて、
+// それが「Goalのデータがカテゴリーをまたいで共有されてしまう」不具合の原因だった）
 function showTabPanel(tabName) {
   if (!tabs.length || !panels.length) return;
   tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
@@ -474,8 +532,8 @@ function showTabPanel(tabName) {
     const iframe = p.querySelector('iframe.embedded-page');
     if (iframe) {
       const base = EMBED_PAGES[tabName] || iframe.getAttribute('src');
-      const src = base && selectedCategoryId && !base.includes('goal.html')
-        ? base + '?category=' + encodeURIComponent(selectedCategoryId)
+      const src = base && selectedCategoryId
+        ? base + (base.includes('?') ? '&' : '?') + 'category=' + encodeURIComponent(selectedCategoryId)
         : base;
       if (isActive && src) {
         if (iframe.dataset.loadedSrc !== src) {
