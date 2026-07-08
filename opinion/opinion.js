@@ -229,6 +229,91 @@ if(composerSave) {
 
 const memoEl = document.getElementById('memo');
 const memoHint = document.getElementById('memoHint');
+const linkInputWrapper = document.getElementById('linkInputWrapper');
+const linkUrlInput = document.getElementById('linkUrlInput');
+const linkSubmitBtn = document.getElementById('linkSubmitBtn');
+const linkCancelBtn = document.getElementById('linkCancelBtn');
+
+function showLinkInput(){
+  if(linkInputWrapper) linkInputWrapper.style.display = 'flex';
+  if(linkUrlInput) {
+    linkUrlInput.focus();
+    linkUrlInput.select();
+  }
+}
+
+function hideLinkInput(){
+  if(linkInputWrapper) linkInputWrapper.style.display = 'none';
+  if(linkUrlInput) linkUrlInput.value = '';
+}
+
+function insertLinkFromInput(){
+  const rawValue = linkUrlInput?.value.trim() || '';
+  if(!rawValue || !memoEl) return;
+
+  let url = rawValue;
+  if(!/^https?:\/\//i.test(url)) {
+    url = 'https://' + url;
+  }
+
+  const label = rawValue.replace(/^https?:\/\//i, '').replace(/\/$/, '') || 'リンク';
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.target = '_blank';
+  anchor.rel = 'noopener noreferrer';
+  anchor.textContent = label;
+
+  memoEl.focus();
+  const selection = window.getSelection();
+  let range;
+
+  if (selection && selection.rangeCount > 0) {
+    range = selection.getRangeAt(0);
+    if (!memoEl.contains(range.commonAncestorContainer)) {
+      range = document.createRange();
+      range.selectNodeContents(memoEl);
+      range.collapse(false);
+    }
+  } else {
+    range = document.createRange();
+    range.selectNodeContents(memoEl);
+    range.collapse(false);
+  }
+
+  range.insertNode(anchor);
+  range.setStartAfter(anchor);
+  range.setEndAfter(anchor);
+  selection.removeAllRanges();
+  selection.addRange(range);
+
+  const trailingSpace = document.createTextNode(' ');
+  range.insertNode(trailingSpace);
+
+  memoEl.dispatchEvent(new Event('input', { bubbles: true }));
+  hideLinkInput();
+  memoEl.focus();
+  updateToolbarState();
+}
+
+if(linkSubmitBtn) {
+  linkSubmitBtn.addEventListener('click', insertLinkFromInput);
+}
+
+if(linkCancelBtn) {
+  linkCancelBtn.addEventListener('click', () => {
+    hideLinkInput();
+    if(memoEl) memoEl.focus();
+  });
+}
+
+if(linkUrlInput) {
+  linkUrlInput.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter') {
+      e.preventDefault();
+      insertLinkFromInput();
+    }
+  });
+}
 
 // ツールバーボタンのコマンド実行（存在チェック用の安全ガード付き）
 document.querySelectorAll('.memo-btn:not(.memo-text-color-btn):not(.memo-highlight-btn)').forEach(btn => {
@@ -236,22 +321,12 @@ document.querySelectorAll('.memo-btn:not(.memo-text-color-btn):not(.memo-highlig
     e.preventDefault();
     const command = btn.getAttribute('data-command');
     if(command === 'createLink'){
-      const url = prompt('リンク先のURLを入力してください:');
-      if(url) {
-        document.execCommand('createLink', false, url);
-        // 生成されたリンクを別タブ対応にする
-        const selection = window.getSelection();
-        if (selection.rangeCount > 0) {
-          const container = selection.getRangeAt(0).commonAncestorContainer;
-          const element = container.nodeType === 3 ? container.parentNode : container;
-          if (element.tagName === 'A') {
-            element.setAttribute('target', '_blank');
-          }
-        }
-      }
-    } else {
-      document.execCommand(command);
+      showLinkInput();
+      return;
     }
+
+    hideLinkInput();
+    document.execCommand(command);
     if(memoEl) memoEl.focus();
     updateToolbarState();
   });
