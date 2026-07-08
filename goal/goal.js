@@ -15,7 +15,6 @@ let members = [];
 
 const memberList = document.getElementById('memberList');
 const taskLegend = document.getElementById('taskLegend');
-const totalTasksEl = document.getElementById('totalTasks');
 const chartCanvas = document.getElementById('taskChart');
 const ctx = chartCanvas ? chartCanvas.getContext('2d') : null;
 
@@ -168,13 +167,14 @@ function drawChart(total) {
   ctx.arc(centerX, centerY, radius * 0.55, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.font = '600 24px "Noto Sans JP", sans-serif';
+  // 中央表示：タスクがあるときは総件数を表示する（以前は'負荷' / '割合'を表示していた）
+  ctx.font = '700 28px "Noto Sans JP", sans-serif';
   ctx.fillStyle = '#4b443e';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(total > 0 ? '負荷' : '0', centerX, centerY - 10);
-  ctx.font = '500 16px "Noto Sans JP", sans-serif';
-  ctx.fillText(total > 0 ? '割合' : '件', centerX, centerY + 18);
+  ctx.fillText(total > 0 ? String(total) : '0', centerX, centerY - 8);
+  ctx.font = '500 14px "Noto Sans JP", sans-serif';
+  ctx.fillText('件', centerX, centerY + 20);
 }
 
 function init() {
@@ -182,7 +182,6 @@ function init() {
   const total = members.reduce((sum, member) => sum + member.count, 0);
   if (memberList) renderMembers();
   if (taskLegend) renderLegend(total);
-  if (totalTasksEl) totalTasksEl.textContent = total;
   drawChart(total);
 }
 

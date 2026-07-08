@@ -13,7 +13,7 @@ html, body {
   padding: 0;
 }
 body {
-  background: #f7f4ef;
+  background: #fdf9f5; /* match calendar background tone */
 }
 .layout {
   max-width: 1440px;
@@ -68,7 +68,7 @@ body {
 .main {
   display: grid;
   grid-template-columns: 320px 1fr;
-  gap: 24px;
+  gap: 12px; /* reduce gap to make panels feel closer like calendar */
 }
 .sidebar {
   display: grid;
@@ -78,7 +78,8 @@ body {
   background: #fff;
   border-radius: 24px;
   padding: 24px;
-  box-shadow: 0 14px 32px rgba(80,70,60,.08);
+  /* Slightly lighter shadow to match calendar */
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
 }
 .user-panel .panel-label,
 .panel-label {
@@ -139,7 +140,7 @@ body {
   place-items: center;
   color: #fff;
   font-weight: 700;
-  box-shadow: 0 8px 18px rgba(0,0,0,.08);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.04);
 }
 .member-meta {
   display: grid;
@@ -208,7 +209,8 @@ body {
   border-radius: 26px;
   background: #fff;
   padding: 18px;
-  box-shadow: inset 0 0 0 1px rgba(229,221,209,.8);
+  /* Use even lighter outer shadow and a very subtle inset border */
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04), inset 0 0 0 1px rgba(229,221,209,0.12);
   display: grid;
   place-items: center;
 }
@@ -221,22 +223,10 @@ body {
   display: grid;
   gap: 18px;
 }
-.summary-card,
 .legend-card {
   background: #fbfaf7;
   border-radius: 20px;
   padding: 18px;
-}
-.summary-card p {
-  margin: 0;
-  color: #7f756c;
-  font-size: .95rem;
-}
-.summary-card strong {
-  display: block;
-  margin-top: 10px;
-  font-size: 2rem;
-  color: #2f2a27;
 }
 .legend-list {
   list-style: none;
