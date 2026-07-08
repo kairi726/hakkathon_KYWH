@@ -6,34 +6,82 @@ body {
   color: #333;
 }
 
-/* ===== ログイン画面 ===== */
-.auth-screen {
+/* ===== ログイン画面（login/style.cssの内容をこのページ用にそのまま移植。
+   他の画面のスタイルと衝突しないよう #login-screen 配下だけに効くようにしてある） ===== */
+.login-screen {
   min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(135deg, #f4f7ff, #eef6ff);
 }
-.auth-card {
+#login-screen .auth-card {
+  width: min(100%, 460px);
   background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-  padding: 32px 36px;
-  width: 100%;
-  max-width: 360px;
+  border-radius: 24px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.1);
+  padding: 32px;
+  font-family: "Helvetica Neue", Arial, "Hiragino Sans", "Yu Gothic", sans-serif;
+  color: #1f2937;
 }
-.auth-title {
-  font-family: Georgia, serif;
-  font-size: 28px;
-  font-weight: normal;
-  color: #555;
-  margin-bottom: 6px;
+#login-screen .auth-header { margin-bottom: 24px; }
+#login-screen .eyebrow {
+  margin: 0 0 8px; color: #4f46e5; font-size: 0.9rem;
+  font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
 }
-.auth-sub { font-size: 13px; color: #999; margin-bottom: 20px; }
-.auth-form { display: flex; flex-direction: column; gap: 12px; }
-.auth-btn-row { display: flex; gap: 8px; margin-top: 4px; }
-.auth-btn-row button { flex: 1; }
-.auth-error { font-size: 12px; color: #d07070; min-height: 16px; }
+#login-screen h1 { margin: 0 0 8px; font-size: 1.8rem; }
+#login-screen .auth-header p { margin: 0; color: #6b7280; line-height: 1.6; }
+#login-screen .toggle {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  margin-bottom: 20px; background: transparent; border: none; padding: 0; border-radius: 0;
+}
+#login-screen .toggle-btn {
+  border: none; background: transparent; color: #6b7280;
+  border-radius: 999px; padding: 8px 12px; cursor: pointer; font-weight: 700;
+}
+#login-screen .toggle-btn.active { background: #ffe0d1; color: #7a3b2a; }
+#login-screen .auth-form { display: grid; gap: 14px; }
+#login-screen .field-group { display: grid; gap: 6px; }
+#login-screen label { font-size: 0.95rem; font-weight: 600; color: #374151; }
+#login-screen input {
+  width: 100%; border: 1px solid #d1d5db; border-radius: 12px;
+  padding: 12px 14px; font-size: 1rem;
+}
+#login-screen input:focus { outline: 2px solid rgba(79, 70, 229, 0.2); border-color: #4f46e5; }
+#login-screen .color-group { gap: 8px; }
+#login-screen .color-picker-row {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border: 1px solid #e5e7eb; border-radius: 14px; background: #f9fafb;
+}
+#login-screen .color-picker-row input[type="color"] {
+  width: 46px; height: 46px; padding: 0; border: none; background: transparent; cursor: pointer;
+}
+#login-screen .color-preview {
+  width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.15);
+}
+#login-screen .color-help { font-size: 0.85rem; color: #6b7280; line-height: 1.4; }
+#login-screen .color-palette { display: flex; flex-wrap: wrap; gap: 8px; }
+#login-screen .color-palette .color-swatch {
+  width: 38px; height: 38px; border: 4px solid #fff; border-radius: 50%;
+  cursor: pointer; box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+#login-screen .color-palette .color-swatch:hover { transform: translateY(-4px); box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18); }
+#login-screen .color-palette .color-swatch:focus { outline: none; box-shadow: 0 0 0 6px rgba(16,24,40,0.06), 0 10px 24px rgba(15,23,42,0.18); }
+#login-screen .confirm-color-btn {
+  background: #111827; color: #fff; border: none; padding: 8px 12px;
+  border-radius: 999px; font-weight: 700; cursor: pointer;
+}
+#login-screen .confirm-color-btn:disabled { opacity: 0.5; cursor: default; }
+#login-screen .submit-btn {
+  margin-top: 6px; border: none; border-radius: 999px; padding: 12px 16px;
+  background: #111827; color: #fff; font-size: 1rem; font-weight: 700; cursor: pointer;
+}
+#login-screen .submit-btn:hover { background: #1f2937; }
+#login-screen .form-message { min-height: 1.2em; margin: 0; font-size: 0.95rem; color: #0f766e; }
+#login-screen .hidden { display: none; }
 
 /* ===== 共通フォーム部品 ===== */
 .form-label {
@@ -234,3 +282,22 @@ body {
 .placeholder-note { font-size: 14px; color: #aaa; padding: 30px 0; text-align: center; }
 
 .embedded-page { width: 100%; min-height: 640px; border: none; border-radius: 12px; }
+
+/* ===== どのタブにいても表示されるアラーム通知バナー ===== */
+.alarm-fire-banner {
+  position: fixed; top: 16px; right: 16px; z-index: 1000;
+  opacity: 0; pointer-events: none; transition: opacity 0.3s;
+}
+.alarm-fire-banner.active { opacity: 1; pointer-events: auto; }
+.alarm-fire-card {
+  background: #fff; border: 2px solid #A6D8E4; border-radius: 12px;
+  padding: 14px 18px; box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  display: flex; align-items: flex-start; gap: 12px; max-width: 300px;
+  animation: alarmSlideIn 0.3s ease;
+}
+@keyframes alarmSlideIn { from { transform: translateX(40px); opacity:0; } to { transform: translateX(0); opacity:1; } }
+.alarm-fire-icon { font-size: 26px; }
+.alarm-fire-body { flex: 1; }
+.alarm-fire-body strong { font-size: 15px; color: #333; display: block; }
+.alarm-fire-body span   { font-size: 13px; color: #666; }
+.alarm-fire-dismiss { background: none; border: none; color: #ccc; font-size: 16px; cursor: pointer; }

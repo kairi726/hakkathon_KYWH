@@ -4,9 +4,8 @@
 // 1. https://console.firebase.google.com/ でプロジェクトを新規作成（無料）
 // 2. 「Firestore Database」を作成（テストモードでOK。後でルールを絞る）
 // 3. プロジェクト設定 → マイアプリ → ウェブアプリを追加 → 下の firebaseConfig をコピペ
-// ※ ログイン機能は別担当が実装中のため、ここでは Firebase Authentication は使わず
-//    Firestore（データ保存）だけを使っている。ログインができたら下の「仮のユーザー識別」を
-//    実際のログインユーザー情報に差し替えるだけでよい。
+// ※ ユーザー認証はこのファイル内で完結する独自実装（Firebase Authenticationは未使用）。
+//    Firestoreはカテゴリー・Goalなどのデータ保存にだけ使っている。
 // ============================================================
 const firebaseConfig = {
   apiKey: "AIzaSyA3x07jil3hPvtSsYFnreB-QQhxPGWOHIc",
@@ -23,27 +22,27 @@ const db = firebase.firestore();
 const FieldValue = firebase.firestore.FieldValue;
 
 // ============================================================
-// 仮のユーザー識別（ログイン機能ができるまでのつなぎ）
+// ログインユーザー情報
 // ------------------------------------------------------------
-// 名前・メールアドレスをlocalStorageに保存して「ログイン済み」の代わりにする。
-// ログイン機能ができたら、currentUser の中身をそのログインユーザー情報に
-// 差し替えれば、招待・共有・カテゴリー機能はそのまま動く。
+// ログイン画面は別ファイルに分けず、このページ（#login-screen）に直接組み込んである。
+// ログインに成功したら currentUser を設定して、そのままアプリ画面に切り替える
+// （別ページへの遷移はしないので、file://・ローカルサーバーどちらでも確実に動く）。
 // ============================================================
 const USER_KEY = 'tb_current_user';
 function loadStoredUser() {
   try { return JSON.parse(localStorage.getItem(USER_KEY)); } catch { return null; }
 }
-function saveStoredUser(u) { localStorage.setItem(USER_KEY, JSON.stringify(u)); }
-let currentUser = loadStoredUser(); // { name, email } または null
+function saveStoredUser(u) { try { localStorage.setItem(USER_KEY, JSON.stringify(u)); } catch { /* ignore */ } }
+let currentUser = loadStoredUser(); // { name, email, favoriteColor } または null
 
 // カテゴリー用パステルカラー（既存タブ配色に合わせる）
 const CATEGORY_COLORS = ['#f3b6b7', '#fef5c1', '#ebd0b3', '#c3bad3', '#cee3be', '#e4b8cf'];
 
-// 埋め込みページ（相対パス）
+// 埋め込みページ（相対パス。mypage/ から見た位置）
 const EMBED_PAGES = {
-  todo: '../../todo/index.html',
-  calendar: '../../calender/calender.html',
-  opinion: '../perfect.html',
+  todo: '../todo/index.html',
+  calendar: '../calender/calender.html',
+  opinion: '../opinion/opinion.html',
 };
 
 let selectedCategoryId = null;
@@ -59,18 +58,159 @@ function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'
 // 招待リンクの ?join=... を一時保存（ログイン後に処理する）
 const pendingJoinId = new URLSearchParams(location.search).get('join');
 
-// ===== 仮のユーザー識別フォーム =====
-document.getElementById('identity-form').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const name = document.getElementById('identity-name').value.trim();
-  const email = document.getElementById('identity-email').value.trim();
-  if (!name || !email) return;
-  currentUser = { name, email };
-  saveStoredUser(currentUser);
-  startApp();
+// ============================================================
+// ログイン画面のロジック（元のlogin/script.jsの内容をそのまま移植。
+// 見た目・項目・色選択の流れは変えていない。違うのは最後だけ：
+// 別ページへ遷移する代わりに、この場でアプリ画面に切り替える）
+// ============================================================
+const toggleButtons = document.querySelectorAll('.toggle-btn');
+const formTitle = document.getElementById('form-title');
+const formDescription = document.getElementById('form-description');
+const submitButton = document.getElementById('submit-btn');
+const formMessage = document.getElementById('form-message');
+const nameGroup = document.getElementById('name-group');
+const confirmGroup = document.getElementById('confirm-group');
+const authForm = document.getElementById('auth-form');
+const colorGroup = document.getElementById('color-group');
+const colorInput = document.getElementById('favorite-color');
+const colorPreview = document.getElementById('color-preview');
+const colorHelp = document.getElementById('color-help');
+const swatches = document.querySelectorAll('.color-swatch');
+let colorSelectionReady = false;
+const confirmColorBtn = document.getElementById('confirm-color-btn');
+
+function initSavedColor() {
+  try {
+    const saved = localStorage.getItem('favoriteColor');
+    if (saved) {
+      colorInput.value = saved;
+      updateColorPreview();
+    }
+  } catch (e) {
+    // localStorage unavailable — ignore
+  }
+}
+
+function updateColorPreview() {
+  const color = colorInput.value;
+  colorPreview.style.backgroundColor = color;
+  colorHelp.textContent = 'お好みの色を選べます。';
+}
+
+function setMode(mode) {
+  const isSignup = mode === 'signup';
+
+  toggleButtons.forEach((button) => {
+    button.classList.toggle('active', button.dataset.mode === mode);
+  });
+
+  formTitle.textContent = isSignup ? '新規登録' : '会員登録';
+  formDescription.textContent = isSignup
+    ? 'アカウントを作成して、サービスを始めましょう。'
+    : '登録済みの情報でログインできます。';
+  submitButton.textContent = isSignup ? '新規登録する' : 'ログインする';
+
+  nameGroup.classList.toggle('hidden', !isSignup);
+  confirmGroup.classList.toggle('hidden', !isSignup);
+  colorGroup.classList.toggle('hidden', !colorSelectionReady);
+  formMessage.textContent = '';
+
+  // 隠れている項目にrequiredが残っていると、ブラウザが「必須なのにフォーカスできない」
+  // 判定でフォーム送信自体をブロックしてしまうため、表示状態に合わせて付け外しする
+  document.getElementById('name').required = isSignup;
+}
+
+toggleButtons.forEach((button) => {
+  button.addEventListener('click', () => setMode(button.dataset.mode));
 });
 
-// ログアウト（今は仮のユーザー識別を消すだけ。本物のログイン機能が来たらここに置き換える）
+swatches.forEach((button) => {
+  button.addEventListener('click', () => {
+    colorInput.value = button.dataset.color;
+    updateColorPreview();
+  });
+});
+
+confirmColorBtn.addEventListener('click', () => {
+  const selected = colorInput.value;
+  try {
+    localStorage.setItem('favoriteColor', selected);
+  } catch (e) {
+    console.warn('localStorage unavailable', e);
+  }
+  formMessage.style.color = '#0f766e';
+  formMessage.textContent = '色を保存しました。';
+});
+
+colorInput.addEventListener('input', updateColorPreview);
+updateColorPreview();
+initSavedColor();
+
+// ログイン成功時：ページ遷移せず、その場でアプリ画面に切り替える
+function completeLogin(name, email) {
+  let favoriteColor = null;
+  try { favoriteColor = localStorage.getItem('favoriteColor'); } catch (e) { /* ignore */ }
+  currentUser = {
+    name: name || (email ? email.split('@')[0] : ''),
+    email: email || '',
+    favoriteColor: favoriteColor || null,
+  };
+  saveStoredUser(currentUser);
+  document.getElementById('login-screen').style.display = 'none';
+  startApp();
+}
+
+authForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+
+  const isSignup = document.querySelector('.toggle-btn.active').dataset.mode === 'signup';
+  const password = document.getElementById('password').value;
+  const confirmPassword = document.getElementById('confirm-password').value;
+
+  if (isSignup && password !== confirmPassword) {
+    formMessage.textContent = 'パスワードが一致しません。';
+    formMessage.style.color = '#b91c1c';
+    return;
+  }
+
+  formMessage.style.color = '#0f766e';
+
+  if (isSignup) {
+    // After signup, clear the login fields so they don't carry over
+    authForm.reset();
+    initSavedColor();
+    colorSelectionReady = true;
+    colorGroup.classList.remove('hidden');
+    updateColorPreview();
+    formMessage.textContent = '新規登録が完了しました。会員登録に進めます。';
+    setMode('login');
+    return;
+  }
+
+  // ログインは常にマイページへ進む（色選択は任意のおまけで、無くても進める）
+  const email = document.getElementById('email').value.trim();
+  const nameValue = document.getElementById('name').value.trim(); // ログイン画面では入力欄が隠れているため空のことが多い
+
+  let saved = null;
+  try {
+    saved = localStorage.getItem('favoriteColor');
+  } catch (e) {
+    /* ignore */
+  }
+
+  if (!saved) {
+    colorSelectionReady = true;
+    colorGroup.classList.remove('hidden');
+    updateColorPreview();
+  }
+
+  formMessage.textContent = 'ログインしました。マイページに移動します…';
+  setTimeout(() => completeLogin(nameValue, email), 500);
+});
+
+setMode('login');
+
+// ===== ログアウト =====
 document.getElementById('logout-btn').addEventListener('click', () => {
   if (unsubCategories) unsubCategories();
   if (unsubCategoryDoc) unsubCategoryDoc();
@@ -78,11 +218,12 @@ document.getElementById('logout-btn').addEventListener('click', () => {
   currentUser = null;
   localStorage.removeItem(USER_KEY);
   document.getElementById('app-screen').style.display = 'none';
-  document.getElementById('identity-screen').style.display = 'flex';
+  authForm.reset();
+  setMode('login');
+  document.getElementById('login-screen').style.display = '';
 });
 
 async function startApp() {
-  document.getElementById('identity-screen').style.display = 'none';
   document.getElementById('app-screen').style.display = 'block';
   document.getElementById('user-email-label').textContent = currentUser.name + ' ・ ' + currentUser.email;
 
@@ -93,11 +234,11 @@ async function startApp() {
   subscribeCategories();
 }
 
-// 初期表示：すでに仮ユーザー情報があればそのままアプリを開始
+// 初期表示：ログイン済み（過去にログインしてlocalStorageに残っている）ならそのままアプリを開始。
+// 未ログインならログイン画面（デフォルトで表示されている）のままにする。
 if (currentUser) {
+  document.getElementById('login-screen').style.display = 'none';
   startApp();
-} else {
-  document.getElementById('identity-screen').style.display = 'flex';
 }
 
 // リンクから参加：自分のメールをmemberEmailsに追加するだけ
@@ -350,3 +491,27 @@ tabs.forEach(tab => {
     showTabPanel(tab.dataset.tab);
   });
 });
+
+// ===== アラーム通知（どのタブを見ていても気づけるように） =====
+// Calendarタブのiframe（calender.html）は、アラームが鳴った瞬間にここへ
+// postMessageで知らせてくる。今どのタブを表示していても、このページ全体に
+// 固定表示されるバナーでお知らせする。
+window.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'tb-alarm-fired') {
+    showGlobalAlarmBanner(e.data.title);
+  }
+});
+
+function showGlobalAlarmBanner(title) {
+  const banner = document.getElementById('global-alarm-banner');
+  banner.innerHTML = `<div class="alarm-fire-card">
+    <span class="alarm-fire-icon">⏰</span>
+    <div class="alarm-fire-body">
+      <strong>${escHtml(title)}</strong>
+      <span>アラームの時間です！</span>
+    </div>
+    <button class="alarm-fire-dismiss" onclick="document.getElementById('global-alarm-banner').classList.remove('active')">✕</button>
+  </div>`;
+  banner.classList.add('active');
+  setTimeout(() => banner.classList.remove('active'), 12000);
+}
