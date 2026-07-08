@@ -8,22 +8,69 @@
 </head>
 <body>
 
-<!-- ===== 仮のユーザー識別（ログイン機能は別担当が実装予定。できあがったらここを置き換える） ===== -->
-<div id="identity-screen" class="auth-screen">
-  <div class="auth-card">
-    <h1 class="auth-title">My Page</h1>
-    <p class="auth-sub">お名前とメールアドレスを入力してください（仮の識別用。ログイン機能ができたら自動で置き換わります）</p>
-    <form id="identity-form" class="auth-form">
-      <label class="form-label">お名前
-        <input id="identity-name" type="text" required placeholder="例：田中">
-      </label>
-      <label class="form-label">メールアドレス
-        <input id="identity-email" type="email" required placeholder="you@example.com">
-      </label>
-      <button type="submit" class="add-btn add-btn-goal">はじめる</button>
+<!-- ===== ログイン画面（別ファイルに分けず、このページに直接組み込み） ===== -->
+<div id="login-screen" class="login-screen">
+  <main class="auth-card">
+    <div class="auth-header">
+      <p class="eyebrow">Welcome</p>
+      <h1 id="form-title">新規登録</h1>
+      <p id="form-description">アカウントを作成して、サービスを始めましょう。</p>
+    </div>
+
+    <div class="toggle" role="tablist" aria-label="認証切り替え">
+      <button class="toggle-btn active" type="button" data-mode="login">会員登録</button>
+      <button class="toggle-btn" type="button" data-mode="signup">新規登録</button>
+    </div>
+
+    <form id="auth-form" class="auth-form">
+      <div class="field-group" id="name-group">
+        <label for="name">お名前</label>
+        <input id="name" name="name" type="text" placeholder="山田 太郎" required>
+      </div>
+
+      <div class="field-group">
+        <label for="email">メールアドレス</label>
+        <input id="email" name="email" type="email" placeholder="example@email.com" required>
+      </div>
+
+      <div class="field-group">
+        <label for="password">パスワード</label>
+        <input id="password" name="password" type="password" placeholder="8文字以上" required>
+      </div>
+
+      <div class="field-group" id="confirm-group">
+        <label for="confirm-password">パスワード確認</label>
+        <input id="confirm-password" name="confirm-password" type="password" placeholder="もう一度入力してください">
+      </div>
+
+      <div class="field-group color-group hidden" id="color-group">
+        <label for="favorite-color">自分の色を選ぶ</label>
+        <div class="color-picker-row">
+          <input id="favorite-color" name="favorite-color" type="color" value="#c8f7c5" aria-label="好きな色">
+          <span class="color-preview" id="color-preview" aria-hidden="true"></span>
+          <span class="color-help" id="color-help">登録後にお好みの色を選べます。</span>
+        </div>
+        <div class="color-palette" role="list" aria-label="おすすめカラー">
+          <button type="button" class="color-swatch" data-color="#ffcfda" style="background:#ffcfda" aria-label="パステルピンク"></button>
+          <button type="button" class="color-swatch" data-color="#fff5b7" style="background:#fff5b7" aria-label="パステルイエロー"></button>
+          <button type="button" class="color-swatch" data-color="#c8f7c5" style="background:#c8f7c5" aria-label="パステルグリーン"></button>
+          <button type="button" class="color-swatch" data-color="#e9d5ff" style="background:#e9d5ff" aria-label="パステルパープル"></button>
+          <button type="button" class="color-swatch" data-color="#cffafe" style="background:#cffafe" aria-label="パステルシアン"></button>
+          <button type="button" class="color-swatch" data-color="#ffd6f0" style="background:#e5aad2" aria-label="パステルピンク2"></button>
+        </div>
+        <div style="margin-top:10px">
+          <button type="button" id="confirm-color-btn" class="confirm-color-btn">色を決定</button>
+        </div>
+      </div>
+
+      <button class="submit-btn" type="submit" id="submit-btn">新規登録する</button>
+      <p class="form-message" id="form-message" aria-live="polite"></p>
     </form>
-  </div>
+  </main>
 </div>
+
+<!-- どのタブを見ていてもアラームに気づけるよう、ページ全体で共通のバナー -->
+<div id="global-alarm-banner" class="alarm-fire-banner"></div>
 
 <!-- ===== メインアプリ ===== -->
 <div id="app-screen" class="app-screen" style="display:none;">
@@ -44,7 +91,7 @@
     <div id="no-category-msg" class="empty-state" style="display:none;">
       <p class="empty-state-icon">🗂️</p>
       <p class="empty-state-title">まだカテゴリーがありません</p>
-      <p class="empty-state-sub">カテゴリーを作ると、Goal・To do・Time・Calendarなどのタブが自動で使えるようになります</p>
+      <p class="empty-state-sub">カテゴリーを作ると、Goal・To do・Opinion・Calendarなどのタブが自動で使えるようになります</p>
     </div>
 
     <!-- カテゴリー追加フォーム（トグル表示） -->
@@ -66,11 +113,10 @@
 
     <button id="back-to-list-btn" class="text-btn back-to-list-btn">← カテゴリー一覧 / カテゴリーを追加</button>
 
-    <!-- 既存のタブバー（Goal / To do / Time / Opinion / Calendar / AI Asistant） -->
+    <!-- タブバー（perfect/perfect.htmlと同じ構成：Goal / To do / Opinion / Calendar / AI Asistant） -->
     <nav class="tab-container">
       <a href="#" class="tab-item tab-goal active" data-tab="goal">Goal</a>
       <a href="#" class="tab-item tab-todo" data-tab="todo">To do</a>
-      <a href="#" class="tab-item tab-time" data-tab="time">Time</a>
       <a href="#" class="tab-item tab-opinion" data-tab="opinion">Opinion</a>
       <a href="#" class="tab-item tab-calendar" data-tab="calendar">Calendar</a>
       <a href="#" class="tab-item tab-ai" data-tab="ai">AI Asistant</a>
@@ -117,25 +163,19 @@
         <!-- To do -->
         <div class="tab-panel" data-panel="todo">
           <h2 class="page-title">To do</h2>
-          <iframe class="embedded-page" src="" style="display:none;"></iframe>
-        </div>
-
-        <!-- Time -->
-        <div class="tab-panel" data-panel="time">
-          <h2 class="page-title">Time</h2>
-          <p class="placeholder-note">Time機能は準備中です。</p>
+          <iframe class="embedded-page" style="display:none;"></iframe>
         </div>
 
         <!-- Opinion -->
         <div class="tab-panel" data-panel="opinion">
           <h2 class="page-title">Opinion</h2>
-          <iframe class="embedded-page" src="" style="display:none;"></iframe>
+          <iframe class="embedded-page" style="display:none;"></iframe>
         </div>
 
         <!-- Calendar -->
         <div class="tab-panel" data-panel="calendar">
           <h2 class="page-title">Calendar</h2>
-          <iframe class="embedded-page" src="" style="display:none;"></iframe>
+          <iframe class="embedded-page" style="display:none;"></iframe>
         </div>
 
         <!-- AI Asistant -->
