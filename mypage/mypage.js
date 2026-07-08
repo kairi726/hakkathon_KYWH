@@ -454,8 +454,10 @@ function scheduleGoalSave() {
     setTimeout(() => { if (label.textContent === '保存しました') label.textContent = ''; }, 2000);
   }, 600);
 }
-document.getElementById('goal-text').addEventListener('input', scheduleGoalSave);
-document.getElementById('goal-info').addEventListener('input', scheduleGoalSave);
+const goalTextEl = document.getElementById('goal-text');
+const goalInfoEl = document.getElementById('goal-info');
+if (goalTextEl) goalTextEl.addEventListener('input', scheduleGoalSave);
+if (goalInfoEl) goalInfoEl.addEventListener('input', scheduleGoalSave);
 
 // ===== タブ切り替え =====
 const tabs = document.querySelectorAll('.tab-item[data-tab]');
@@ -464,6 +466,7 @@ const panels = document.querySelectorAll('.tab-panel');
 // カテゴリーごとにTo do/Calendarの中身が混ざらないよう、埋め込みページには
 // ?category=カテゴリーID を付けて渡す（todo/calenderページ側もこのIDでデータを分ける）
 function showTabPanel(tabName) {
+  if (!tabs.length || !panels.length) return;
   tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
   panels.forEach(p => {
     const isActive = p.dataset.panel === tabName;
