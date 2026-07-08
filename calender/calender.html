@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Calendar</title>
   <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -255,7 +254,7 @@ body {
 </head>
 <body>
 
-<h1 class="page-title">Calendar</h1>
+<h1 class="page-title" id="page-title">Calendar</h1>
 <div id="alarm-fire-banner"></div>
 
 <div class="cal-layout">
@@ -346,6 +345,14 @@ const keySuffix = categoryId ? '_' + categoryId : '';
 const DL_KEY  = 'tb_deadlines' + keySuffix;
 const ALM_KEY = 'tb_calendar_alarms' + keySuffix;
 const FIRED_KEY = 'tb_fired_alarms' + keySuffix;
+
+// マイページ（categoryId付き）に埋め込まれているときは、マイページ側の
+// タブ見出し「Calendar」とタイトルが二重に表示されてしまうので、このページ自身の
+// 見出しは非表示にする。単体でこのページを直接開いた場合は今まで通り表示する。
+if (categoryId) {
+  const titleEl = document.getElementById('page-title');
+  if (titleEl) titleEl.style.display = 'none';
+}
 
 function load(key)   { try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; } }
 function save(key,v) { localStorage.setItem(key, JSON.stringify(v)); }
@@ -547,6 +554,14 @@ function checkAlarms() {
 }
 
 function showAlarmBanner(alarm) {
+  // マイページ等に埋め込まれている場合、Calendarタブを見ていなくても気づけるように
+  // 親ページへ通知する（親ページ側はどのタブにいてもバナーを表示する）
+  if (window.parent && window.parent !== window) {
+    try {
+      window.parent.postMessage({ type: 'tb-alarm-fired', title: alarm.title }, '*');
+    } catch (e) { /* ignore */ }
+  }
+
   const banner = document.getElementById('alarm-fire-banner');
   banner.innerHTML = `<div class="alarm-fire-card">
     <span class="alarm-fire-icon">⏰</span>

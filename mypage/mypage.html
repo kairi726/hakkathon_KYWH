@@ -8,22 +8,8 @@
 </head>
 <body>
 
-<!-- ===== 仮のユーザー識別（ログイン機能は別担当が実装予定。できあがったらここを置き換える） ===== -->
-<div id="identity-screen" class="auth-screen">
-  <div class="auth-card">
-    <h1 class="auth-title">My Page</h1>
-    <p class="auth-sub">お名前とメールアドレスを入力してください（仮の識別用。ログイン機能ができたら自動で置き換わります）</p>
-    <form id="identity-form" class="auth-form">
-      <label class="form-label">お名前
-        <input id="identity-name" type="text" required placeholder="例：田中">
-      </label>
-      <label class="form-label">メールアドレス
-        <input id="identity-email" type="email" required placeholder="you@example.com">
-      </label>
-      <button type="submit" class="add-btn add-btn-goal">はじめる</button>
-    </form>
-  </div>
-</div>
+<!-- どのタブを見ていてもアラームに気づけるよう、ページ全体で共通のバナー -->
+<div id="global-alarm-banner" class="alarm-fire-banner"></div>
 
 <!-- ===== メインアプリ ===== -->
 <div id="app-screen" class="app-screen" style="display:none;">
@@ -44,7 +30,7 @@
     <div id="no-category-msg" class="empty-state" style="display:none;">
       <p class="empty-state-icon">🗂️</p>
       <p class="empty-state-title">まだカテゴリーがありません</p>
-      <p class="empty-state-sub">カテゴリーを作ると、Goal・To do・Time・Calendarなどのタブが自動で使えるようになります</p>
+      <p class="empty-state-sub">カテゴリーを作ると、Goal・To do・Opinion・Calendarなどのタブが自動で使えるようになります</p>
     </div>
 
     <!-- カテゴリー追加フォーム（トグル表示） -->
@@ -66,11 +52,10 @@
 
     <button id="back-to-list-btn" class="text-btn back-to-list-btn">← カテゴリー一覧 / カテゴリーを追加</button>
 
-    <!-- 既存のタブバー（Goal / To do / Time / Opinion / Calendar / AI Asistant） -->
+    <!-- タブバー（perfect/perfect.htmlと同じ構成：Goal / To do / Opinion / Calendar / AI Asistant） -->
     <nav class="tab-container">
       <a href="#" class="tab-item tab-goal active" data-tab="goal">Goal</a>
       <a href="#" class="tab-item tab-todo" data-tab="todo">To do</a>
-      <a href="#" class="tab-item tab-time" data-tab="time">Time</a>
       <a href="#" class="tab-item tab-opinion" data-tab="opinion">Opinion</a>
       <a href="#" class="tab-item tab-calendar" data-tab="calendar">Calendar</a>
       <a href="#" class="tab-item tab-ai" data-tab="ai">AI Asistant</a>
@@ -117,25 +102,19 @@
         <!-- To do -->
         <div class="tab-panel" data-panel="todo">
           <h2 class="page-title">To do</h2>
-          <iframe class="embedded-page" src="" style="display:none;"></iframe>
-        </div>
-
-        <!-- Time -->
-        <div class="tab-panel" data-panel="time">
-          <h2 class="page-title">Time</h2>
-          <p class="placeholder-note">Time機能は準備中です。</p>
+          <iframe class="embedded-page" style="display:none;"></iframe>
         </div>
 
         <!-- Opinion -->
         <div class="tab-panel" data-panel="opinion">
           <h2 class="page-title">Opinion</h2>
-          <iframe class="embedded-page" src="" style="display:none;"></iframe>
+          <iframe class="embedded-page" style="display:none;"></iframe>
         </div>
 
         <!-- Calendar -->
         <div class="tab-panel" data-panel="calendar">
           <h2 class="page-title">Calendar</h2>
-          <iframe class="embedded-page" src="" style="display:none;"></iframe>
+          <iframe class="embedded-page" style="display:none;"></iframe>
         </div>
 
         <!-- AI Asistant -->

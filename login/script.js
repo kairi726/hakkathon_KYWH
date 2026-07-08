@@ -62,6 +62,30 @@ swatches.forEach((button) => {
   });
 });
 
+// ログイン後にマイページへ渡すユーザー情報（名前・メール・好きな色）
+// file:// で開いた場合、ブラウザによってはページごとにlocalStorageが分離されて
+// 見えないことがあるため、保険としてURLパラメータでも直接渡す。
+function goToMyPage(name, email) {
+  let favoriteColor = null;
+  try {
+    favoriteColor = localStorage.getItem('favoriteColor');
+    localStorage.setItem('tb_current_user', JSON.stringify({
+      name: name || (email ? email.split('@')[0] : ''),
+      email: email || '',
+      favoriteColor: favoriteColor || null,
+    }));
+  } catch (e) {
+    console.warn('localStorage unavailable', e);
+  }
+  const params = new URLSearchParams({
+    name: name || (email ? email.split('@')[0] : ''),
+    email: email || '',
+  });
+  if (favoriteColor) params.set('color', favoriteColor);
+  // 相対パスにして、file:// でもローカルサーバーでも同じように遷移できるようにする
+  location.href = '../mypage/mypage.html?' + params.toString();
+}
+
 confirmColorBtn.addEventListener('click', () => {
   const selected = colorInput.value;
   try {
@@ -104,7 +128,10 @@ authForm.addEventListener('submit', (event) => {
     return;
   }
 
-  // On login, only prompt for color if the user hasn't already decided one
+  // ログインは常にマイページへ進む（色選択は任意のおまけで、無くても進める）
+  const email = document.getElementById('email').value.trim();
+  const nameValue = document.getElementById('name').value.trim(); // ログイン画面では入力欄が隠れているため空のことが多い
+
   let saved = null;
   try {
     saved = localStorage.getItem('favoriteColor');
@@ -112,16 +139,14 @@ authForm.addEventListener('submit', (event) => {
     /* ignore */
   }
 
-  const hasSavedColor = Boolean(saved);
-
-  if (hasSavedColor) {
-    formMessage.textContent = 'ログインしました。';
-  } else {
-    formMessage.textContent = 'ログインしました。好きな色を選んでください。';
+  if (!saved) {
     colorSelectionReady = true;
     colorGroup.classList.remove('hidden');
     updateColorPreview();
   }
+
+  formMessage.textContent = 'ログインしました。マイページに移動します…';
+  setTimeout(() => goToMyPage(nameValue, email), 500);
 });
 
 setMode('login');

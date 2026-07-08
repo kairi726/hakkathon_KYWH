@@ -233,4 +233,23 @@ body {
 
 .placeholder-note { font-size: 14px; color: #aaa; padding: 30px 0; text-align: center; }
 
+/* ===== どのタブにいても表示されるアラーム通知バナー ===== */
+.alarm-fire-banner {
+  position: fixed; top: 16px; right: 16px; z-index: 1000;
+  opacity: 0; pointer-events: none; transition: opacity 0.3s;
+}
+.alarm-fire-banner.active { opacity: 1; pointer-events: auto; }
+.alarm-fire-card {
+  background: #fff; border: 2px solid #A6D8E4; border-radius: 12px;
+  padding: 14px 18px; box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  display: flex; align-items: flex-start; gap: 12px; max-width: 300px;
+  animation: alarmSlideIn 0.3s ease;
+}
+@keyframes alarmSlideIn { from { transform: translateX(40px); opacity:0; } to { transform: translateX(0); opacity:1; } }
+.alarm-fire-icon { font-size: 26px; }
+.alarm-fire-body { flex: 1; }
+.alarm-fire-body strong { font-size: 15px; color: #333; display: block; }
+.alarm-fire-body span   { font-size: 13px; color: #666; }
+.alarm-fire-dismiss { background: none; border: none; color: #ccc; font-size: 16px; cursor: pointer; }
+
 .embedded-page { width: 100%; min-height: 640px; border: none; border-radius: 12px; }
