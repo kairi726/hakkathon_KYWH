@@ -1,5 +1,20 @@
-// 初期データは空にして、再読み込み時に既存タスクが表示されないようにする
-let todos = [];
+const TODO_STORAGE_KEY = 'todo-items';
+
+function loadTodos() {
+  try {
+    return JSON.parse(localStorage.getItem(TODO_STORAGE_KEY)) || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveTodos() {
+  localStorage.setItem(TODO_STORAGE_KEY, JSON.stringify(todos));
+  window.dispatchEvent(new Event('todo-data-updated'));
+}
+
+// 初期データは保存済みの内容を読み込む
+let todos = loadTodos();
 
 const listContainer = document.getElementById('todo-list-container');
 const todoForm = document.getElementById('todo-form');
@@ -73,6 +88,7 @@ todoForm.addEventListener('submit', (e) => {
   };
 
   todos.push(newTodo);
+  saveTodos();
   renderTodos();
 
   // フォームをリセット
@@ -92,6 +108,7 @@ window.toggleComplete = function(id) {
 // タスクを削除
 window.deleteTodo = function(id) {
   todos = todos.filter(todo => todo.id !== id);
+  saveTodos();
   renderTodos();
 };
 
@@ -103,6 +120,7 @@ window.updateStatus = function(id, newStatus) {
     }
     return todo;
   });
+  saveTodos();
   renderTodos();
 };
 
