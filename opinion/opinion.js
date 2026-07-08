@@ -236,7 +236,7 @@ document.querySelectorAll('.memo-btn:not(.memo-text-color-btn):not(.memo-highlig
     e.preventDefault();
     const command = btn.getAttribute('data-command');
     if(command === 'createLink'){
-      const url = prompt('リンク先のURLを入力してください:', 'https://');
+      const url = prompt('リンク先のURLを入力してください:');
       if(url) {
         document.execCommand('createLink', false, url);
         // 生成されたリンクを別タブ対応にする
