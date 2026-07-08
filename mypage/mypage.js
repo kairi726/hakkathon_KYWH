@@ -104,7 +104,7 @@ function setMode(mode) {
     button.classList.toggle('active', button.dataset.mode === mode);
   });
 
-  formTitle.textContent = isSignup ? '新規登録' : '会員登録';
+  formTitle.textContent = isSignup ? '新規登録' : 'ログイン';
   formDescription.textContent = isSignup
     ? 'アカウントを作成して、サービスを始めましょう。'
     : '登録済みの情報でログインできます。';
