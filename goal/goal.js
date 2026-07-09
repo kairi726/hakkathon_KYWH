@@ -8,8 +8,66 @@ const params = new URLSearchParams(location.search);
 const CATEGORY_ID = params.get('category') || 'default';
 
 const USER_KEY = 'tb_current_user';
-const TODO_STORAGE_KEY = 'todo-items-' + CATEGORY_ID;
 const COLOR_PALETTE = ['#ffcfda', '#fff5b7', '#c8f7c5', '#e9d5ff', '#cffafe', '#9cd0d8'];
+
+// ------------------------------------------------------------
+// Firebase（mypage.js・todo/script.jsと同じプロジェクト・同じ設定）
+// ------------------------------------------------------------
+// 以前はTodoの件数をlocalStorage（この端末だけ）から読んでいたため、
+// 他のメンバーが追加したタスクがこの円グラフに反映されなかった。
+// todo/script.jsと同じFirestoreコレクションを購読することで、
+// 誰が・どの端末でタスクを追加してもリアルタイムで反映されるようにする。
+// ------------------------------------------------------------
+const firebaseConfig = {
+  apiKey: "AIzaSyA3x07jil3hPvtSsYFnreB-QQhxPGWOHIc",
+  authDomain: "kwyh-1219.firebaseapp.com",
+  projectId: "kwyh-1219",
+  storageBucket: "kwyh-1219.firebasestorage.app",
+  messagingSenderId: "497261200413",
+  appId: "1:497261200413:web:17465c15d28e1d9e13f2f4",
+  measurementId: "G-0ZSW26JXG0",
+};
+if (!firebase.apps || !firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
+const db = firebase.firestore();
+const categoryDocRef = db.collection('categories').doc(CATEGORY_ID);
+const todosRef = categoryDocRef.collection('todos');
+let latestTodos = [];
+
+// ------------------------------------------------------------
+// Target（目標）欄の保存
+// ------------------------------------------------------------
+// 以前はこのテキストエリアに保存・読み込みの処理が一切無く、
+// 何を書いても再読み込みすれば消え、他のメンバーにも共有されていなかった。
+// mypage.js（以前のGoalタブ）と同じ categories/カテゴリーID/goal/main
+// ドキュメントを使い、targetフィールドとして保存する。
+// ------------------------------------------------------------
+const goalDocRef = categoryDocRef.collection('goal').doc('main');
+const goalInfoTextEl = document.getElementById('goalInfoText');
+let goalSaveTimer = null;
+
+if (goalInfoTextEl) {
+  goalDocRef.onSnapshot(doc => {
+    if (!doc.exists) return;
+    const data = doc.data() || {};
+    // 自分が今まさに入力中のときは上書きしない（他人の更新が来てもカーソル位置や
+    // 入力中の文字が消えないようにするため）
+    if (document.activeElement !== goalInfoTextEl) {
+      goalInfoTextEl.value = data.target || data.text || '';
+    }
+  }, err => console.error('目標欄の購読に失敗しました', err));
+
+  goalInfoTextEl.addEventListener('input', () => {
+    clearTimeout(goalSaveTimer);
+    goalSaveTimer = setTimeout(() => {
+      goalDocRef.set({
+        target: goalInfoTextEl.value,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true }).catch(err => console.error('目標欄の保存に失敗しました', err));
+    }, 500);
+  });
+}
 
 let members = [];
 
@@ -17,6 +75,27 @@ const memberList = document.getElementById('memberList');
 const taskLegend = document.getElementById('taskLegend');
 const chartCanvas = document.getElementById('taskChart');
 const ctx = chartCanvas ? chartCanvas.getContext('2d') : null;
+
+// ------------------------------------------------------------
+// Memberリスト（mypage.js）との色の連携
+// ------------------------------------------------------------
+// 以前は担当者の「名前」が一致するかどうかと、表示順のインデックスだけで
+// 色を決めていたため、自分以外のメンバーの色がMemberリストや表示順によって
+// 変わってしまっていた。親ページ（mypage.js）がMemberリストの色を確定させた
+// タイミングでpostMessageしてくれるので、それをメールアドレスで突き合わせて
+// 使うことで、円グラフの色もMemberリスト・Todoの担当者色と完全に一致させる。
+// ------------------------------------------------------------
+let knownMembers = []; // [{ email, name, color }, ...]
+
+if (window.parent && window.parent !== window) {
+  window.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'tb-members-update' && Array.isArray(e.data.members)) {
+      knownMembers = e.data.members;
+      init(); // 色・件数が変わっている可能性があるので再描画
+    }
+  });
+  window.parent.postMessage({ type: 'tb-request-members' }, '*');
+}
 
 function loadStoredUser() {
   try {
@@ -38,11 +117,7 @@ function loadUserProfile(email) {
 }
 
 function loadTodos() {
-  try {
-    return JSON.parse(localStorage.getItem(TODO_STORAGE_KEY)) || [];
-  } catch (e) {
-    return [];
-  }
+  return latestTodos;
 }
 
 function getMemberColor(name, index) {
@@ -64,7 +139,41 @@ function getMemberColor(name, index) {
   return COLOR_PALETTE[(index + 1) % COLOR_PALETTE.length];
 }
 
-function buildMembers() {
+// メールアドレスで固定された色を使う版（mypage.jsからメンバー情報を
+// 受け取れているときはこちらを使う）
+function buildMembersFromKnown() {
+  const currentUser = loadStoredUser();
+  const currentEmail = currentUser?.email || null;
+  const memberMap = new Map(); // key: email（不明分は '未定' 固定キー）
+
+  knownMembers.forEach(m => {
+    memberMap.set(m.email, { name: m.name, email: m.email, count: 0, color: m.color });
+  });
+
+  loadTodos().forEach(todo => {
+    if (todo.assigneeEmail && memberMap.has(todo.assigneeEmail)) {
+      memberMap.get(todo.assigneeEmail).count += 1;
+      return;
+    }
+    // メールアドレスが分からない（古いデータ、または担当者未定）タスクはまとめる
+    if (!memberMap.has('__unassigned__')) {
+      memberMap.set('__unassigned__', { name: '未定', email: null, count: 0, color: '#d9d9d9' });
+    }
+    memberMap.get('__unassigned__').count += 1;
+  });
+
+  return Array.from(memberMap.values())
+    .filter(m => m.count > 0 || m.email === currentEmail) // 自分は0件でも表示、それ以外は0件なら省く
+    .sort((a, b) => {
+      if (a.email === currentEmail) return -1;
+      if (b.email === currentEmail) return 1;
+      return b.count - a.count || a.name.localeCompare(b.name, 'ja');
+    });
+}
+
+// 従来の名前一致＋インデックスによる版（mypage.jsからメンバー情報を
+// まだ受け取れていない・単体で開いた場合のフォールバック）
+function buildMembersLegacy() {
   const currentUser = loadStoredUser();
   const currentUserName = currentUser?.name || 'あなた';
   const currentUserProfile = currentUser ? loadUserProfile(currentUser.email) : null;
@@ -96,6 +205,10 @@ function buildMembers() {
     if (b.name === currentUserName) return 1;
     return b.count - a.count || a.name.localeCompare(b.name, 'ja');
   });
+}
+
+function buildMembers() {
+  return knownMembers.length > 0 ? buildMembersFromKnown() : buildMembersLegacy();
 }
 
 function renderMembers() {
@@ -185,6 +298,12 @@ function init() {
   drawChart(total);
 }
 
+// Todoの内容をリアルタイムで購読する（他のメンバーが別の端末で追加・変更しても
+// すぐこの円グラフに反映される。以前使っていた'storage'イベントは同一ブラウザの
+// 別タブにしか届かず、他のメンバーの端末には届かなかった）
+todosRef.onSnapshot(snap => {
+  latestTodos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  init();
+}, err => console.error('Todoの購読に失敗しました', err));
+
 window.addEventListener('DOMContentLoaded', init);
-window.addEventListener('storage', init);
-window.addEventListener('todo-data-updated', init);

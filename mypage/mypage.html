@@ -77,13 +77,43 @@
 
   <!-- ユーザーバー -->
   <div class="user-bar">
-    <span id="user-email-label" class="user-email-label"></span>
+    <div class="account-area">
+      <button type="button" id="user-name-btn" class="user-name-btn"></button>
+
+      <!-- 名前を押すと出てくるアカウント情報パネル -->
+      <div id="account-panel" class="account-panel" style="display:none;">
+        <div class="account-panel-row">
+          <label for="account-name-input">名前</label>
+          <input id="account-name-input" type="text" placeholder="表示する名前">
+        </div>
+        <div class="account-panel-row">
+          <label>メールアドレス</label>
+          <span id="account-email-display" class="account-email-display"></span>
+        </div>
+        <div class="account-panel-row">
+          <label>自分の色<span class="account-color-hint">（同じカテゴリー内で色がかぶったときはここで変更）</span></label>
+          <div id="account-color-palette" class="account-color-palette"></div>
+          <div class="account-color-custom-row">
+            <input id="account-color-input" type="color" value="#c8f7c5">
+            <span id="account-color-preview" class="account-color-preview"></span>
+          </div>
+        </div>
+        <button type="button" id="account-save-btn" class="add-btn add-btn-goal">保存する</button>
+        <p id="account-save-msg" class="account-save-msg"></p>
+      </div>
+    </div>
     <button id="logout-btn" class="text-btn">ログアウト</button>
   </div>
 
   <!-- ===== カテゴリー一覧画面（最初の画面） ===== -->
   <div id="category-list-screen">
     <h2 class="page-title">カテゴリー</h2>
+
+    <!-- 招待されたときのお知らせ（実際のメール送信の代わりに、マイページ上で分かるようにする） -->
+    <div id="invite-notice" class="invite-notice" style="display:none;">
+      <span id="invite-notice-text"></span>
+      <button id="invite-notice-dismiss" class="text-btn">確認しました</button>
+    </div>
 
     <div id="category-list-chips" class="category-list-chips"></div>
 
@@ -139,6 +169,10 @@
 
         <div class="share-box">
           <button id="share-link-btn" class="add-btn add-btn-todo">🔗 共有リンクをコピー</button>
+          <div id="share-link-result" class="share-link-result" style="display:none;">
+            <input id="share-link-text" class="share-link-input" type="text" readonly>
+          </div>
+          <p id="share-link-copied-msg" class="share-link-copied-msg"></p>
           <p class="share-hint">このリンクを開くと、招待なしでもこのカテゴリーに参加できます。</p>
         </div>
 

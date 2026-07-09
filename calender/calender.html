@@ -116,6 +116,7 @@ body {
   font-weight: 500;
 }
 .chip-deadline { background: #FFB3B3; color: #7a2020; }
+.chip-deadline-done { background: #e0e0e0; color: #888; }
 .chip-alarm    { background: #A6D8E4; color: #1a4a5a; }
 
 /* ===== 右サイドパネル ===== */
@@ -197,6 +198,7 @@ body {
 .deadline-item.urgent { background: #fff0f0; border-color: #f08080; }
 .deadline-item.done { background: #f5faf5; border-color: #b8dcb8; opacity: 0.6; }
 .deadline-item.done .item-title { text-decoration: line-through; }
+.dl-color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
 
 .alarm-item {
   display: flex; align-items: flex-start; gap: 10px;
@@ -336,29 +338,108 @@ body {
   </div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
-// ===== ストレージ =====
+// ===== 保存先 =====
 // マイページの各カテゴリーから開かれた場合（?category=ID）は、カテゴリーごとに
-// データが混ざらないよう、保存キーの末尾にカテゴリーIDを付ける。
-// 単体でこのページを開いた場合（従来通り）は共通のキーのまま動く。
-const categoryId = new URLSearchParams(location.search).get('category');
-const keySuffix = categoryId ? '_' + categoryId : '';
-const DL_KEY  = 'tb_deadlines' + keySuffix;
-const ALM_KEY = 'tb_calendar_alarms' + keySuffix;
-const FIRED_KEY = 'tb_fired_alarms' + keySuffix;
+// データが混ざらないよう保存先を分ける。単体でこのページを開いた場合
+// （従来通り）は 'default' というカテゴリー扱いで動く。
+//
+// 以前は締め切り・アラームをlocalStorage（この端末だけ）に保存していたため、
+// 他のメンバーには一切共有されず、後から参加した人には何も見えなかった。
+// Firestore（categories/カテゴリーID/deadlines・alarms）に保存することで、
+// カテゴリーに参加している全員にリアルタイムで共有されるようにする。
+// 「どのアラームがこの端末で既に鳴ったか」だけは端末ごとの状態なので、
+// 引き続きlocalStorageに残す。
+const categoryId = new URLSearchParams(location.search).get('category') || 'default';
+const FIRED_KEY = 'tb_fired_alarms_' + categoryId;
 
-// マイページ（categoryId付き）に埋め込まれているときは、マイページ側の
-// タブ見出し「Calendar」とタイトルが二重に表示されてしまうので、このページ自身の
-// 見出しは非表示にする。単体でこのページを直接開いた場合は今まで通り表示する。
-if (categoryId) {
-  const titleEl = document.getElementById('page-title');
-  if (titleEl) titleEl.style.display = 'none';
+const firebaseConfig = {
+  apiKey: "AIzaSyA3x07jil3hPvtSsYFnreB-QQhxPGWOHIc",
+  authDomain: "kwyh-1219.firebaseapp.com",
+  projectId: "kwyh-1219",
+  storageBucket: "kwyh-1219.firebasestorage.app",
+  messagingSenderId: "497261200413",
+  appId: "1:497261200413:web:17465c15d28e1d9e13f2f4",
+  measurementId: "G-0ZSW26JXG0",
+};
+if (!firebase.apps || !firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
 }
+const db = firebase.firestore();
+const categoryDocRef = db.collection('categories').doc(categoryId);
+const deadlinesRef = categoryDocRef.collection('deadlines');
+const alarmsRef = categoryDocRef.collection('alarms');
+
+let deadlinesCache = [];
+let alarmsCache = [];
 
 function load(key)   { try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; } }
 function save(key,v) { localStorage.setItem(key, JSON.stringify(v)); }
 
+// マイページ（categoryId付き）に埋め込まれているときは、マイページ側の
+// タブ見出し「Calendar」とタイトルが二重に表示されてしまうので、このページ自身の
+// 見出しは非表示にする。単体でこのページを直接開いた場合は今まで通り表示する。
+if (new URLSearchParams(location.search).get('category')) {
+  const titleEl = document.getElementById('page-title');
+  if (titleEl) titleEl.style.display = 'none';
+}
+
 let firedAlarms = new Set(load(FIRED_KEY));
+
+// ------------------------------------------------------------
+// 締め切りを登録した人の固定色を使うための、Memberリスト（mypage.js）との連携
+// ------------------------------------------------------------
+// 以前は締め切りの色が全員分ピンク固定だったため、誰が登録したものか
+// 見分けが付かなかった。Member欄・Todo・Goalと同じ色を使うことで統一する。
+// ------------------------------------------------------------
+let knownMembers = []; // [{ email, name, color }, ...]
+
+function loadStoredUser() {
+  try { return JSON.parse(localStorage.getItem('tb_current_user')); } catch (e) { return null; }
+}
+function loadUserProfile(email) {
+  if (!email) return null;
+  try { return JSON.parse(localStorage.getItem('tb_profile_' + email.trim().toLowerCase())) || null; } catch (e) { return null; }
+}
+function findMemberByEmail(email) {
+  return knownMembers.find(m => m.email === email) || null;
+}
+// mypage.js（Member欄）・todo/opinionのフォールバックと同じパレット・作り方にそろえてある
+function fallbackColorFromEmail(email) {
+  const palette = ['#f3b6b7', '#fef5c1', '#ebd0b3', '#c3bad3', '#cee3be', '#e4b8cf'];
+  let hash = 0;
+  const s = String(email || 'guest');
+  for (let i = 0; i < s.length; i++) { hash = s.charCodeAt(i) + ((hash << 5) - hash); }
+  return palette[Math.abs(hash) % palette.length];
+}
+function colorForDeadline(item) {
+  if (item.createdByEmail) {
+    const known = findMemberByEmail(item.createdByEmail);
+    if (known) return known.color;
+    const local = loadUserProfile(item.createdByEmail);
+    if (local && local.favoriteColor) return local.favoriteColor;
+  }
+  return fallbackColorFromEmail(item.createdByEmail);
+}
+// 背景色の明るさに応じて読みやすい文字色（濃い茶 or 白）を選ぶ
+function inkColorFor(bgHex) {
+  const hex = String(bgHex || '').replace('#', '');
+  if (hex.length !== 6) return '#333';
+  const r = parseInt(hex.slice(0,2),16), g = parseInt(hex.slice(2,4),16), b = parseInt(hex.slice(4,6),16);
+  return (0.299*r + 0.587*g + 0.114*b) / 255 > 0.6 ? '#333' : '#fff';
+}
+
+if (window.parent && window.parent !== window) {
+  window.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'tb-members-update' && Array.isArray(e.data.members)) {
+      knownMembers = e.data.members;
+      renderDeadlineList(); renderCalendarGrid();
+    }
+  });
+  window.parent.postMessage({ type: 'tb-request-members' }, '*');
+}
 
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
@@ -391,8 +472,8 @@ let currentYear, currentMonth;
 (function(){ const n=new Date(); currentYear=n.getFullYear(); currentMonth=n.getMonth(); })();
 
 function renderCalendarGrid() {
-  const deadlines = load(DL_KEY);
-  const alarms    = load(ALM_KEY);
+  const deadlines = deadlinesCache;
+  const alarms    = alarmsCache;
   const firstDay  = new Date(currentYear, currentMonth, 1).getDay();
   const daysInMonth = new Date(currentYear, currentMonth+1, 0).getDate();
   const todayStr  = new Date().toISOString().slice(0,10);
@@ -420,7 +501,11 @@ function renderCalendarGrid() {
     if(dow===0) cls += ' sun'; if(dow===6) cls += ' sat';
 
     const chips = [
-      ...dls.slice(0,2).map(x=>`<div class="cal-event-chip chip-deadline">${escHtml(x.title)}</div>`),
+      ...dls.slice(0,2).map(x=>{
+        if (x.done) return `<div class="cal-event-chip chip-deadline-done">${escHtml(x.title)}</div>`;
+        const c = colorForDeadline(x);
+        return `<div class="cal-event-chip" style="background:${c};color:${inkColorFor(c)}">${escHtml(x.title)}</div>`;
+      }),
       ...alms.slice(0,1).map(x=>`<div class="cal-event-chip chip-alarm">${escHtml(x.title)}</div>`),
     ].join('');
 
@@ -449,29 +534,32 @@ document.getElementById('cal-next').addEventListener('click', () => {
 // ===== 締め切り =====
 document.getElementById('deadline-form').addEventListener('submit', e => {
   e.preventDefault();
+  const currentUser = loadStoredUser();
   const item = {
-    id: 'd'+Date.now(),
     title:    document.getElementById('dl-title').value.trim(),
     datetime: toDatetimeStr(document.getElementById('dl-date').value, document.getElementById('dl-time').value),
     memo:     document.getElementById('dl-memo').value.trim(),
     done:     false, // 完了フラグ（他機能の完了合図と連携する場合はここを更新する）
+    createdByEmail: currentUser?.email || null, // 登録した人（色をその人の固定色にするため）
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
   };
   if(!item.title || !item.datetime) return;
-  const list = load(DL_KEY); list.push(item); save(DL_KEY, list);
+  deadlinesRef.add(item).catch(err => console.error('締め切りの追加に失敗しました', err));
   e.target.reset();
-  renderDeadlineList(); renderCalendarGrid();
 });
 
 function renderDeadlineList() {
   const container = document.getElementById('deadline-list');
-  const items = load(DL_KEY);
+  const items = deadlinesCache;
   if(!items.length){ container.innerHTML='<p class="item-empty">締め切りがまだありません</p>'; return; }
   const now = nowStr();
   const sorted = [...items].sort((a,b) => a.datetime.localeCompare(b.datetime));
   container.innerHTML = sorted.map(item => {
     const isPast = item.datetime < now;
     const isDone = !!item.done;
+    const dotColor = colorForDeadline(item);
     return `<div class="deadline-item ${isPast&&!isDone?'past':''} ${isDone?'done':''}">
+      <span class="dl-color-dot" style="background:${dotColor}"></span>
       <div class="item-icon">${isDone?'☑️':'📌'}</div>
       <div class="item-body">
         <div class="item-title">${escHtml(item.title)}${isDone?'':deadlineBadge(item.datetime)}</div>
@@ -485,36 +573,34 @@ function renderDeadlineList() {
 }
 
 function deleteDeadline(id) {
-  save(DL_KEY, load(DL_KEY).filter(x=>x.id!==id));
-  renderDeadlineList(); renderCalendarGrid();
+  deadlinesRef.doc(id).delete().catch(err => console.error('締め切りの削除に失敗しました', err));
 }
 
 // 完了トグル（手動）。将来的に他機能の完了合図と連携する場合は、
-// その合図を受け取った時にここと同じ処理（doneをtrueにしてsave）を呼べばよい。
+// その合図を受け取った時にここと同じ処理（doneをtrueに更新）を呼べばよい。
 function toggleDeadlineDone(id) {
-  const list = load(DL_KEY).map(x => x.id===id ? {...x, done: !x.done} : x);
-  save(DL_KEY, list);
-  renderDeadlineList(); renderCalendarGrid();
+  const cur = deadlinesCache.find(x => x.id === id);
+  if (!cur) return;
+  deadlinesRef.doc(id).update({ done: !cur.done }).catch(err => console.error('更新に失敗しました', err));
 }
 
 // ===== アラーム =====
 document.getElementById('alarm-form').addEventListener('submit', e => {
   e.preventDefault();
   const item = {
-    id: 'a'+Date.now(),
     title:    document.getElementById('al-title').value.trim(),
     datetime: toDatetimeStr(document.getElementById('al-date').value, document.getElementById('al-time').value),
     repeat:   document.getElementById('al-repeat').value,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
   };
   if(!item.title || !item.datetime) return;
-  const list = load(ALM_KEY); list.push(item); save(ALM_KEY, list);
+  alarmsRef.add(item).catch(err => console.error('アラームの追加に失敗しました', err));
   e.target.reset();
-  renderAlarmList(); renderCalendarGrid();
 });
 
 function renderAlarmList() {
   const container = document.getElementById('alarm-list');
-  const items = load(ALM_KEY);
+  const items = alarmsCache;
   if(!items.length){ container.innerHTML='<p class="item-empty">アラームがまだありません</p>'; return; }
   const now = nowStr();
   const sorted = [...items].sort((a,b) => a.datetime.localeCompare(b.datetime));
@@ -535,15 +621,15 @@ function renderAlarmList() {
 }
 
 function deleteAlarm(id) {
-  save(ALM_KEY, load(ALM_KEY).filter(x=>x.id!==id));
+  alarmsRef.doc(id).delete().catch(err => console.error('アラームの削除に失敗しました', err));
   firedAlarms.delete(id);
-  renderAlarmList(); renderCalendarGrid();
+  save(FIRED_KEY, [...firedAlarms]);
 }
 
 // ===== アラームチェック =====
 function checkAlarms() {
   const now = nowStr();
-  load(ALM_KEY).forEach(alarm => {
+  alarmsCache.forEach(alarm => {
     if(!firedAlarms.has(alarm.id) && alarm.datetime <= now){
       firedAlarms.add(alarm.id);
       save(FIRED_KEY, [...firedAlarms]);
@@ -579,11 +665,23 @@ function showAlarmBanner(alarm) {
 if('Notification' in window && Notification.permission==='default') Notification.requestPermission();
 
 // ===== 初期化 =====
+// 締め切り・アラームはFirestoreをリアルタイムで購読する。カテゴリーに参加している
+// 全員に共有され、後から参加した人が開いても、これまでの内容がそのまま見える。
+deadlinesRef.orderBy('createdAt', 'asc').onSnapshot(snap => {
+  deadlinesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderDeadlineList(); renderCalendarGrid();
+}, err => console.error('締め切りの購読に失敗しました', err));
+
+alarmsRef.orderBy('createdAt', 'asc').onSnapshot(snap => {
+  alarmsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderAlarmList(); renderCalendarGrid();
+  checkAlarms();
+}, err => console.error('アラームの購読に失敗しました', err));
+
 renderCalendarGrid();
 renderDeadlineList();
 renderAlarmList();
 setInterval(checkAlarms, 10000);
-checkAlarms();
 </script>
 </body>
 </html>
