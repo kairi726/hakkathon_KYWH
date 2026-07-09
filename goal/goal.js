@@ -31,8 +31,43 @@ if (!firebase.apps || !firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
 const db = firebase.firestore();
-const todosRef = db.collection('categories').doc(CATEGORY_ID).collection('todos');
+const categoryDocRef = db.collection('categories').doc(CATEGORY_ID);
+const todosRef = categoryDocRef.collection('todos');
 let latestTodos = [];
+
+// ------------------------------------------------------------
+// Target（目標）欄の保存
+// ------------------------------------------------------------
+// 以前はこのテキストエリアに保存・読み込みの処理が一切無く、
+// 何を書いても再読み込みすれば消え、他のメンバーにも共有されていなかった。
+// mypage.js（以前のGoalタブ）と同じ categories/カテゴリーID/goal/main
+// ドキュメントを使い、targetフィールドとして保存する。
+// ------------------------------------------------------------
+const goalDocRef = categoryDocRef.collection('goal').doc('main');
+const goalInfoTextEl = document.getElementById('goalInfoText');
+let goalSaveTimer = null;
+
+if (goalInfoTextEl) {
+  goalDocRef.onSnapshot(doc => {
+    if (!doc.exists) return;
+    const data = doc.data() || {};
+    // 自分が今まさに入力中のときは上書きしない（他人の更新が来てもカーソル位置や
+    // 入力中の文字が消えないようにするため）
+    if (document.activeElement !== goalInfoTextEl) {
+      goalInfoTextEl.value = data.target || data.text || '';
+    }
+  }, err => console.error('目標欄の購読に失敗しました', err));
+
+  goalInfoTextEl.addEventListener('input', () => {
+    clearTimeout(goalSaveTimer);
+    goalSaveTimer = setTimeout(() => {
+      goalDocRef.set({
+        target: goalInfoTextEl.value,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true }).catch(err => console.error('目標欄の保存に失敗しました', err));
+    }, 500);
+  });
+}
 
 let members = [];
 
