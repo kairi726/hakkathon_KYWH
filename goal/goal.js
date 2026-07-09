@@ -8,8 +8,31 @@ const params = new URLSearchParams(location.search);
 const CATEGORY_ID = params.get('category') || 'default';
 
 const USER_KEY = 'tb_current_user';
-const TODO_STORAGE_KEY = 'todo-items-' + CATEGORY_ID;
 const COLOR_PALETTE = ['#ffcfda', '#fff5b7', '#c8f7c5', '#e9d5ff', '#cffafe', '#9cd0d8'];
+
+// ------------------------------------------------------------
+// Firebase（mypage.js・todo/script.jsと同じプロジェクト・同じ設定）
+// ------------------------------------------------------------
+// 以前はTodoの件数をlocalStorage（この端末だけ）から読んでいたため、
+// 他のメンバーが追加したタスクがこの円グラフに反映されなかった。
+// todo/script.jsと同じFirestoreコレクションを購読することで、
+// 誰が・どの端末でタスクを追加してもリアルタイムで反映されるようにする。
+// ------------------------------------------------------------
+const firebaseConfig = {
+  apiKey: "AIzaSyA3x07jil3hPvtSsYFnreB-QQhxPGWOHIc",
+  authDomain: "kwyh-1219.firebaseapp.com",
+  projectId: "kwyh-1219",
+  storageBucket: "kwyh-1219.firebasestorage.app",
+  messagingSenderId: "497261200413",
+  appId: "1:497261200413:web:17465c15d28e1d9e13f2f4",
+  measurementId: "G-0ZSW26JXG0",
+};
+if (!firebase.apps || !firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
+const db = firebase.firestore();
+const todosRef = db.collection('categories').doc(CATEGORY_ID).collection('todos');
+let latestTodos = [];
 
 let members = [];
 
@@ -59,11 +82,7 @@ function loadUserProfile(email) {
 }
 
 function loadTodos() {
-  try {
-    return JSON.parse(localStorage.getItem(TODO_STORAGE_KEY)) || [];
-  } catch (e) {
-    return [];
-  }
+  return latestTodos;
 }
 
 function getMemberColor(name, index) {
@@ -244,6 +263,12 @@ function init() {
   drawChart(total);
 }
 
+// Todoの内容をリアルタイムで購読する（他のメンバーが別の端末で追加・変更しても
+// すぐこの円グラフに反映される。以前使っていた'storage'イベントは同一ブラウザの
+// 別タブにしか届かず、他のメンバーの端末には届かなかった）
+todosRef.onSnapshot(snap => {
+  latestTodos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  init();
+}, err => console.error('Todoの購読に失敗しました', err));
+
 window.addEventListener('DOMContentLoaded', init);
-window.addEventListener('storage', init);
-window.addEventListener('todo-data-updated', init);

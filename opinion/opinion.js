@@ -5,19 +5,31 @@ let memoTimer = null;
 // ------------------------------------------------------------
 // 保存先について
 // ------------------------------------------------------------
-// 以前は window.storage.get/set という、このプロジェクトのどこにも
-// 定義されていない関数を呼んでいたため、付箋もメモも実際には
-// 一切保存されていなかった（エラーがtry/catchで握りつぶされて
-// 気づきにくくなっていた）。Todo/Calendarと同じく、ブラウザの
-// localStorageに保存するようにする。あわせて ?category=カテゴリーID
-// でカテゴリーごとにデータが分かれるようにする（他のタブと同じ仕組み）。
+// 以前はlocalStorage（この端末だけ）に保存していたため、他のメンバーには
+// 一切共有されず、後からカテゴリーに参加した人には何も見えなかった。
+// Todo/Calendarと同じくFirestore（categories/カテゴリーID/opinions、
+// categories/カテゴリーID/opinionMemo/main）に保存し、カテゴリーに
+// 参加している全員にリアルタイムで共有されるようにする。
 // ------------------------------------------------------------
 const params = new URLSearchParams(location.search);
 const CATEGORY_ID = params.get('category') || 'default';
-const NOTES_KEY = 'idea-notes-' + CATEGORY_ID;
-const MEMO_KEY = 'idea-memo-' + CATEGORY_ID;
 
-function rid(){ return Math.random().toString(36).slice(2,9); }
+const firebaseConfig = {
+  apiKey: "AIzaSyA3x07jil3hPvtSsYFnreB-QQhxPGWOHIc",
+  authDomain: "kwyh-1219.firebaseapp.com",
+  projectId: "kwyh-1219",
+  storageBucket: "kwyh-1219.firebasestorage.app",
+  messagingSenderId: "497261200413",
+  appId: "1:497261200413:web:17465c15d28e1d9e13f2f4",
+  measurementId: "G-0ZSW26JXG0",
+};
+if (!firebase.apps || !firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
+const db = firebase.firestore();
+const categoryDocRef = db.collection('categories').doc(CATEGORY_ID);
+const opinionsRef = categoryDocRef.collection('opinions');
+const memoRef = categoryDocRef.collection('opinionMemo').doc('main');
 
 // ------------------------------------------------------------
 // 自分の固定色（ログイン画面で選んだお気に入りの色）で付箋を貼るための連携
@@ -63,20 +75,6 @@ function inkColorFor(bgHex){
   return luminance > 0.6 ? '#3A342A' : '#ffffff';
 }
 
-function loadState(){
-  try{
-    const raw = localStorage.getItem(NOTES_KEY);
-    notes = raw ? JSON.parse(raw) : [];
-  }catch(e){ notes = []; }
-  render();
-  loadMemo();
-}
-
-function saveNotes(){
-  try{ localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); }
-  catch(e){ console.error('save failed', e); }
-}
-
 function render(){
   const wrap = document.getElementById('notes');
   if (!wrap) return;
@@ -119,11 +117,11 @@ function buildNoteEl(n){
   deleteBtn.type = 'button';
   deleteBtn.setAttribute('aria-label', '付箋を削除');
   deleteBtn.textContent = '×';
-  deleteBtn.onclick = async (event) => {
+  deleteBtn.onclick = (event) => {
     event.stopPropagation();
     notes = notes.filter((item) => item.id !== n.id);
-    await saveNotes();
     render();
+    opinionsRef.doc(n.id).delete().catch(err => console.error('付箋の削除に失敗しました', err));
   };
   el.appendChild(deleteBtn);
 
@@ -137,9 +135,9 @@ function buildNoteEl(n){
   text.spellcheck = true;
   text.setAttribute('data-placeholder', 'アイデアを入力');
   text.textContent = n.text;
-  text.addEventListener('input', async () => {
+  text.addEventListener('input', () => {
     n.text = text.innerText || text.textContent || '';
-    await saveNotes();
+    opinionsRef.doc(n.id).update({ text: n.text }).catch(err => console.error('付箋の更新に失敗しました', err));
   });
   el.appendChild(text);
 
@@ -166,10 +164,10 @@ function buildNoteEl(n){
     btn.className = 'emoji-option-btn';
     btn.type = 'button';
     btn.textContent = emoji;
-    btn.onclick = async () => {
+    btn.onclick = () => {
       toggleReaction(n, emoji);
-      await saveNotes();
       render();
+      opinionsRef.doc(n.id).update({ reactions: n.reactions }).catch(err => console.error('リアクションの更新に失敗しました', err));
     };
     return btn;
   });
@@ -212,23 +210,23 @@ function buildNoteEl(n){
     deleteBtn.style.color = 'inherit';
     deleteBtn.style.fontSize = '16px';
     deleteBtn.style.padding = '0';
-    deleteBtn.onclick = async () => {
+    deleteBtn.onclick = () => {
       n.comments.splice(idx, 1);
-      await saveNotes();
       render();
+      opinionsRef.doc(n.id).update({ comments: n.comments }).catch(err => console.error('コメントの削除に失敗しました', err));
     };
     li.appendChild(deleteBtn);
     list.appendChild(li);
   });
 
   toggle.onclick = () => box.classList.toggle('open');
-  send.onclick = async () => {
+  send.onclick = () => {
     const v = input.value.trim();
     if(!v) return;
     n.comments.push(v);
     input.value = '';
-    await saveNotes();
     render();
+    opinionsRef.doc(n.id).update({ comments: n.comments }).catch(err => console.error('コメントの追加に失敗しました', err));
   };
   input.addEventListener('keydown', e => { if(e.key === 'Enter') send.onclick(); });
 
@@ -247,10 +245,10 @@ function reactBtn(n, key, mark){
   btn.innerHTML = '<span class="mark">' + safeKey + '</span><span>' + safeValue + '</span>';
   btn.classList.toggle('active', safeValue > 0);
   btn.title = 'クリックで反応 / もう一度で解除';
-  btn.onclick = async () => {
+  btn.onclick = () => {
     toggleReaction(n, safeKey);
-    await saveNotes();
     render();
+    opinionsRef.doc(n.id).update({ reactions: n.reactions }).catch(err => console.error('リアクションの更新に失敗しました', err));
   };
   return btn;
 }
@@ -279,21 +277,31 @@ if(composerSave) {
     const text = (composerEditor.innerText || composerEditor.textContent || '').trim();
     if(!text) return;
     const author = getCurrentAuthor();
-    notes.push({
-      id: rid(),
-      text,
-      color: author.color, // 自分が選んだ固定色をそのまま使う（以前は追加順で色が変わっていた）
-      authorEmail: author.email,
-      authorName: author.name,
-      rot: (Math.random() * 2.4 - 1.2).toFixed(1),
-      reactions: {},
-      comments: []
-    });
-    await saveNotes();
-    render();
+    try {
+      await opinionsRef.add({
+        text,
+        color: author.color, // 自分が選んだ固定色をそのまま使う（以前は追加順で色が変わっていた）
+        authorEmail: author.email,
+        authorName: author.name,
+        rot: (Math.random() * 2.4 - 1.2).toFixed(1),
+        reactions: {},
+        comments: [],
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    } catch (err) {
+      console.error('付箋の追加に失敗しました', err);
+    }
     closeComposer();
   };
 }
+
+// カテゴリー内の全員に共有されるよう、Firestoreをリアルタイムで購読する。
+// 後からカテゴリーに参加した人がこのページを開いても、これまでの
+// 付箋がそのまま全部表示される。
+opinionsRef.orderBy('createdAt', 'asc').onSnapshot(snap => {
+  notes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  render();
+}, err => console.error('付箋の購読に失敗しました', err));
 
 const memoEl = document.getElementById('memo');
 const memoHint = document.getElementById('memoHint');
@@ -429,34 +437,34 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// 保存機能
+// 保存機能（メモもFirestoreで全員に共有する）
 if(memoEl) {
   memoEl.addEventListener('input', () => {
     clearTimeout(memoTimer);
     if(memoHint) memoHint.textContent = '';
     memoTimer = setTimeout(() => {
-      try{
-        const html = memoEl.innerHTML;
-        localStorage.setItem(MEMO_KEY, html);
-        if(memoHint) {
-          memoHint.textContent = '保存しました';
-          setTimeout(() => memoHint.textContent = '', 1500);
-        }
-      }catch(e){}
+      memoRef.set({ html: memoEl.innerHTML }, { merge: true })
+        .then(() => {
+          if(memoHint) {
+            memoHint.textContent = '保存しました';
+            setTimeout(() => { if (memoHint.textContent === '保存しました') memoHint.textContent = ''; }, 1500);
+          }
+        })
+        .catch(() => {});
     }, 500);
   });
 }
 
-function loadMemo(){
-  try{
-    const html = localStorage.getItem(MEMO_KEY);
-    if(html && memoEl){
-      memoEl.innerHTML = html;
-    }
-  }catch(e){}
-}
-
-loadState();
+// カテゴリー内の全員に共有されるよう、メモもリアルタイムで購読する
+memoRef.onSnapshot(doc => {
+  if (!doc.exists || !memoEl) return;
+  const html = doc.data().html || '';
+  // 自分が今まさに入力中のときは上書きしない（他人の更新が入ってきても
+  // カーソル位置が飛んだり、入力中の文字が消えたりしないようにするため）
+  if (document.activeElement !== memoEl) {
+    memoEl.innerHTML = html;
+  }
+});
 
 const toolbarButtons = document.querySelectorAll('.memo-btn[data-command]');
 
