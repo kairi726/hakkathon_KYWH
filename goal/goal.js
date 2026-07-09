@@ -18,6 +18,27 @@ const taskLegend = document.getElementById('taskLegend');
 const chartCanvas = document.getElementById('taskChart');
 const ctx = chartCanvas ? chartCanvas.getContext('2d') : null;
 
+// ------------------------------------------------------------
+// Memberリスト（mypage.js）との色の連携
+// ------------------------------------------------------------
+// 以前は担当者の「名前」が一致するかどうかと、表示順のインデックスだけで
+// 色を決めていたため、自分以外のメンバーの色がMemberリストや表示順によって
+// 変わってしまっていた。親ページ（mypage.js）がMemberリストの色を確定させた
+// タイミングでpostMessageしてくれるので、それをメールアドレスで突き合わせて
+// 使うことで、円グラフの色もMemberリスト・Todoの担当者色と完全に一致させる。
+// ------------------------------------------------------------
+let knownMembers = []; // [{ email, name, color }, ...]
+
+if (window.parent && window.parent !== window) {
+  window.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'tb-members-update' && Array.isArray(e.data.members)) {
+      knownMembers = e.data.members;
+      init(); // 色・件数が変わっている可能性があるので再描画
+    }
+  });
+  window.parent.postMessage({ type: 'tb-request-members' }, '*');
+}
+
 function loadStoredUser() {
   try {
     return JSON.parse(localStorage.getItem(USER_KEY)) || null;
@@ -64,7 +85,41 @@ function getMemberColor(name, index) {
   return COLOR_PALETTE[(index + 1) % COLOR_PALETTE.length];
 }
 
-function buildMembers() {
+// メールアドレスで固定された色を使う版（mypage.jsからメンバー情報を
+// 受け取れているときはこちらを使う）
+function buildMembersFromKnown() {
+  const currentUser = loadStoredUser();
+  const currentEmail = currentUser?.email || null;
+  const memberMap = new Map(); // key: email（不明分は '未定' 固定キー）
+
+  knownMembers.forEach(m => {
+    memberMap.set(m.email, { name: m.name, email: m.email, count: 0, color: m.color });
+  });
+
+  loadTodos().forEach(todo => {
+    if (todo.assigneeEmail && memberMap.has(todo.assigneeEmail)) {
+      memberMap.get(todo.assigneeEmail).count += 1;
+      return;
+    }
+    // メールアドレスが分からない（古いデータ、または担当者未定）タスクはまとめる
+    if (!memberMap.has('__unassigned__')) {
+      memberMap.set('__unassigned__', { name: '未定', email: null, count: 0, color: '#d9d9d9' });
+    }
+    memberMap.get('__unassigned__').count += 1;
+  });
+
+  return Array.from(memberMap.values())
+    .filter(m => m.count > 0 || m.email === currentEmail) // 自分は0件でも表示、それ以外は0件なら省く
+    .sort((a, b) => {
+      if (a.email === currentEmail) return -1;
+      if (b.email === currentEmail) return 1;
+      return b.count - a.count || a.name.localeCompare(b.name, 'ja');
+    });
+}
+
+// 従来の名前一致＋インデックスによる版（mypage.jsからメンバー情報を
+// まだ受け取れていない・単体で開いた場合のフォールバック）
+function buildMembersLegacy() {
   const currentUser = loadStoredUser();
   const currentUserName = currentUser?.name || 'あなた';
   const currentUserProfile = currentUser ? loadUserProfile(currentUser.email) : null;
@@ -96,6 +151,10 @@ function buildMembers() {
     if (b.name === currentUserName) return 1;
     return b.count - a.count || a.name.localeCompare(b.name, 'ja');
   });
+}
+
+function buildMembers() {
+  return knownMembers.length > 0 ? buildMembersFromKnown() : buildMembersLegacy();
 }
 
 function renderMembers() {

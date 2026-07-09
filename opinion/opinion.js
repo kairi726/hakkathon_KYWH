@@ -1,23 +1,79 @@
-const COLORS = ['coral','green','amber','lav'];
+const COLORS = ['coral','green','amber','lav']; // 古い付箋（authorが無いデータ）向けのフォールバック用クラス名
 let notes = [];
 let memoTimer = null;
 
+// ------------------------------------------------------------
+// 保存先について
+// ------------------------------------------------------------
+// 以前は window.storage.get/set という、このプロジェクトのどこにも
+// 定義されていない関数を呼んでいたため、付箋もメモも実際には
+// 一切保存されていなかった（エラーがtry/catchで握りつぶされて
+// 気づきにくくなっていた）。Todo/Calendarと同じく、ブラウザの
+// localStorageに保存するようにする。あわせて ?category=カテゴリーID
+// でカテゴリーごとにデータが分かれるようにする（他のタブと同じ仕組み）。
+// ------------------------------------------------------------
+const params = new URLSearchParams(location.search);
+const CATEGORY_ID = params.get('category') || 'default';
+const NOTES_KEY = 'idea-notes-' + CATEGORY_ID;
+const MEMO_KEY = 'idea-memo-' + CATEGORY_ID;
+
 function rid(){ return Math.random().toString(36).slice(2,9); }
 
-async function loadState(){
-  try{
-    const res = await window.storage.get('idea-notes', true);
-    notes = res ? JSON.parse(res.value) : [];
-  }catch(e){ notes = []; }
-  if(notes.length === 0){
-    notes = [];
-  }
-  render();
-  await loadMemo();
+// ------------------------------------------------------------
+// 自分の固定色（ログイン画面で選んだお気に入りの色）で付箋を貼るための連携
+// ------------------------------------------------------------
+// 以前は付箋を追加した順番（notes.length）で coral/green/amber/lav を
+// 順番に割り当てていたため、同じ人が書いても毎回違う色になっていた。
+// mypage.js・todo・goalと同じ tb_current_user / tb_profile_<email> を見て、
+// 自分が選んだ色をそのまま付箋の背景色として使う。
+// ------------------------------------------------------------
+function loadStoredUser(){
+  try { return JSON.parse(localStorage.getItem('tb_current_user')); } catch(e) { return null; }
+}
+function loadUserProfile(email){
+  if(!email) return null;
+  try { return JSON.parse(localStorage.getItem('tb_profile_' + email.trim().toLowerCase())) || null; } catch(e) { return null; }
+}
+// 色が一つも決まっていない場合の最後の保険（メールアドレスから毎回同じ色を作る）。
+// mypage.js（Member欄）・todo/script.jsのフォールバックと全く同じパレットを使い、
+// 万が一お気に入りの色が未設定のままでも他の画面と色がズレないようにしてある。
+function fallbackColorFromEmail(email){
+  const palette = ['#f3b6b7', '#fef5c1', '#ebd0b3', '#c3bad3', '#cee3be', '#e4b8cf'];
+  let hash = 0;
+  const s = String(email || 'guest');
+  for(let i = 0; i < s.length; i++){ hash = s.charCodeAt(i) + ((hash << 5) - hash); }
+  return palette[Math.abs(hash) % palette.length];
+}
+function getCurrentAuthor(){
+  const currentUser = loadStoredUser();
+  const email = currentUser?.email || null;
+  const profile = email ? loadUserProfile(email) : null;
+  const color = (profile && profile.favoriteColor) || currentUser?.favoriteColor || fallbackColorFromEmail(email);
+  const name = (profile && profile.name) || currentUser?.name || 'あなた';
+  return { email, name, color };
+}
+// 背景色の明るさに応じて、読みやすい文字色（濃い茶 or 白）を選ぶ
+function inkColorFor(bgHex){
+  const hex = String(bgHex || '').replace('#','');
+  if(hex.length !== 6) return '#3A342A';
+  const r = parseInt(hex.slice(0,2),16);
+  const g = parseInt(hex.slice(2,4),16);
+  const b = parseInt(hex.slice(4,6),16);
+  const luminance = (0.299*r + 0.587*g + 0.114*b) / 255;
+  return luminance > 0.6 ? '#3A342A' : '#ffffff';
 }
 
-async function saveNotes(){
-  try{ await window.storage.set('idea-notes', JSON.stringify(notes), true); }
+function loadState(){
+  try{
+    const raw = localStorage.getItem(NOTES_KEY);
+    notes = raw ? JSON.parse(raw) : [];
+  }catch(e){ notes = []; }
+  render();
+  loadMemo();
+}
+
+function saveNotes(){
+  try{ localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); }
   catch(e){ console.error('save failed', e); }
 }
 
@@ -45,8 +101,18 @@ function toggleReaction(n, key){
 
 function buildNoteEl(n){
   const el = document.createElement('div');
-  el.className = 'note c-' + n.color + (hasActiveReaction(n) ? ' is-reacted' : '');
+  el.className = 'note' + (hasActiveReaction(n) ? ' is-reacted' : '');
   el.style.setProperty('--r', n.rot + 'deg');
+
+  // n.colorが「#rrggbb」形式（＝書いた人の固定色）ならインラインで直接塗る。
+  // 古いデータ（coral/green/amber/lavのようなクラス名だけの付箋）は
+  // 従来どおりCSSクラスに任せる。
+  if (n.color && n.color.charAt(0) === '#') {
+    el.style.background = n.color;
+    el.style.color = inkColorFor(n.color);
+  } else {
+    el.classList.add('c-' + (n.color || COLORS[0]));
+  }
 
   const deleteBtn = document.createElement('button');
   deleteBtn.className = 'note-delete';
@@ -212,11 +278,13 @@ if(composerSave) {
   composerSave.onclick = async () => {
     const text = (composerEditor.innerText || composerEditor.textContent || '').trim();
     if(!text) return;
-    const color = COLORS[notes.length % COLORS.length];
+    const author = getCurrentAuthor();
     notes.push({
       id: rid(),
       text,
-      color,
+      color: author.color, // 自分が選んだ固定色をそのまま使う（以前は追加順で色が変わっていた）
+      authorEmail: author.email,
+      authorName: author.name,
       rot: (Math.random() * 2.4 - 1.2).toFixed(1),
       reactions: {},
       comments: []
@@ -366,10 +434,10 @@ if(memoEl) {
   memoEl.addEventListener('input', () => {
     clearTimeout(memoTimer);
     if(memoHint) memoHint.textContent = '';
-    memoTimer = setTimeout(async () => {
+    memoTimer = setTimeout(() => {
       try{
         const html = memoEl.innerHTML;
-        await window.storage.set('idea-memo', html, true);
+        localStorage.setItem(MEMO_KEY, html);
         if(memoHint) {
           memoHint.textContent = '保存しました';
           setTimeout(() => memoHint.textContent = '', 1500);
@@ -379,11 +447,11 @@ if(memoEl) {
   });
 }
 
-async function loadMemo(){
+function loadMemo(){
   try{
-    const memoRes = await window.storage.get('idea-memo', true);
-    if(memoRes && memoEl){
-      memoEl.innerHTML = memoRes.value;
+    const html = localStorage.getItem(MEMO_KEY);
+    if(html && memoEl){
+      memoEl.innerHTML = html;
     }
   }catch(e){}
 }

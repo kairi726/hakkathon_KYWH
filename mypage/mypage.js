@@ -55,7 +55,26 @@ function saveUserProfile(email, data) {
   if (!email) return null;
   const merged = Object.assign({}, loadUserProfile(email) || {}, data);
   try { localStorage.setItem(profileKey(email), JSON.stringify(merged)); } catch { /* ignore */ }
+  syncProfileToCloud(email, merged);
   return merged;
+}
+
+// ------------------------------------------------------------
+// プロフィールをFirestoreにも保存する
+// ------------------------------------------------------------
+// これまでは名前・お気に入りの色がそれぞれの端末のlocalStorageにしか
+// 保存されておらず、他のメンバーの端末からは見えなかった（Memberアイコンの
+// 色が人によってバラバラに見えていた原因）。ログインしているメールアドレスを
+// ドキュメントIDにしてFirestoreにも保存しておくことで、誰の端末から見ても
+// 同じ色・名前がMember一覧に表示されるようにする。
+// ------------------------------------------------------------
+function syncProfileToCloud(email, profile) {
+  if (!email) return;
+  const key = email.trim().toLowerCase();
+  db.collection('users').doc(key).set({
+    name: profile.name || '',
+    favoriteColor: profile.favoriteColor || null,
+  }, { merge: true }).catch(err => console.warn('プロフィールの同期に失敗しました', err));
 }
 
 // 新規登録の途中（まだログインしていない状態）で色を選んでいるとき、
@@ -113,7 +132,10 @@ function updateColorPreview() {
   colorHelp.textContent = 'お好みの色を選べます。';
 }
 
-function setMode(mode) {
+// resetColor=false のときは「ログイン表示に切り替えても色選択は隠さない」。
+// 新規登録が完了した直後だけ、この状態でsetMode('login')を呼んで
+// 名前・確認パスワード欄は隠しつつ色選択だけ表示し続けられるようにする。
+function setMode(mode, { resetColor = true } = {}) {
   const isSignup = mode === 'signup';
 
   toggleButtons.forEach((button) => {
@@ -135,8 +157,8 @@ function setMode(mode) {
   // 判定でフォーム送信自体をブロックしてしまうため、表示状態に合わせて付け外しする
   document.getElementById('name').required = isSignup;
 
-  if (!isSignup) {
-    // ログイン画面に戻ったら、色選択は次のログイン/登録まで一旦リセット
+  if (!isSignup && resetColor) {
+    // ユーザーが自分でログインタブに切り替えたときだけ、色選択は次回まで一旦リセットする
     colorSelectionReady = false;
     colorGroup.classList.add('hidden');
   }
@@ -232,27 +254,33 @@ authForm.addEventListener('submit', (event) => {
     pendingSignupEmail = email;
 
     authForm.reset();
+    // 新規登録直後のログイン画面には、ログインボタンを押す前から
+    // 最初から色選択を表示しておく（ボタンを1回押さないと出てこないのはNG）
     colorSelectionReady = true;
     colorGroup.classList.remove('hidden');
     updateColorPreview();
-    formMessage.textContent = '新規登録が完了しました。よろしければ色も選んでから、ログインへ進んでください。';
-    setMode('login');
+    formMessage.textContent = '新規登録が完了しました。好きな色を選んでから、ログインしてください。';
+    setMode('login', { resetColor: false });
     // ログイン画面でメールを入力し直す手間を減らすため、メールだけ復元しておく
     document.getElementById('email').value = email;
     return;
   }
 
-  // ログインは常にマイページへ進む（色選択は任意のおまけで、無くても進める）
+  // ログイン：まだ色を選んだことが無いアカウントは、色を選んでもらってから
+  // ログインを完了する（自動で先へ進めてしまうと色選択がちらっと見えるだけで
+  // 終わってしまうため、ここでは自動遷移せず一旦止める）。
   const email = document.getElementById('email').value.trim();
   const nameValue = document.getElementById('name').value.trim(); // ログイン画面では入力欄が隠れているため空のことが多い
 
   const existingProfile = loadUserProfile(email);
   if (!existingProfile || !existingProfile.favoriteColor) {
-    // まだ色を選んだことが無いアカウントなら、ログイン後すぐ選べるようにしておく
     pendingSignupEmail = email;
     colorSelectionReady = true;
     colorGroup.classList.remove('hidden');
     updateColorPreview();
+    formMessage.style.color = '#0f766e';
+    formMessage.textContent = '好きな色を選んで「色を決定」を押してから、もう一度「ログインする」を押してください。';
+    return;
   }
 
   formMessage.textContent = 'ログインしました。マイページに移動します…';
@@ -371,18 +399,87 @@ function subscribeSelectedCategory() {
   });
 }
 
-function renderMembers(emails) {
+// 他のメンバーのプロフィール（Firestore由来）を一度取得したら使い回すキャッシュ
+const memberProfileCache = {};
+
+// 誰も色を選んでいない場合のフォールバック：メールアドレスから毎回同じ色を作る
+// （前は表示順=配列のインデックスで色を決めていたため、並び順が変わると
+//   同じ人でも色が変わってしまっていた）
+function fallbackColorFromEmail(email) {
+  let hash = 0;
+  const s = String(email);
+  for (let i = 0; i < s.length; i++) {
+    hash = s.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return CATEGORY_COLORS[Math.abs(hash) % CATEGORY_COLORS.length];
+}
+
+// メールアドレスの配列から {email, name, color} の配列を作る。
+// Todo/GoalタブはiframeでメンバーのMemberリストと同じ色を使いたいので、
+// この結果をあとでpostMessageでも渡せるよう、renderMembersから切り出してある。
+async function resolveMemberInfo(emails) {
+  // 自分の端末のlocalStorageに無い（＝他の人のアカウントの）メールだけ、
+  // Firestoreのusersコレクションへ問い合わせて色・名前を取得する
+  const unknown = emails.filter(email => {
+    const local = loadUserProfile(email);
+    return !(local && local.favoriteColor) && !(email in memberProfileCache);
+  });
+  await Promise.all(unknown.map(async (email) => {
+    try {
+      const key = email.trim().toLowerCase();
+      const doc = await db.collection('users').doc(key).get();
+      memberProfileCache[email] = doc.exists ? doc.data() : null;
+    } catch (err) {
+      memberProfileCache[email] = null;
+    }
+  }));
+
+  return emails.map((email) => {
+    // 優先順位：自分の端末のプロフィール → Firestore上の他メンバーのプロフィール
+    // → メールアドレスから作った固定のフォールバック色
+    const localProfile = loadUserProfile(email);
+    const cloudProfile = memberProfileCache[email];
+    const color = (localProfile && localProfile.favoriteColor)
+      || (cloudProfile && cloudProfile.favoriteColor)
+      || fallbackColorFromEmail(email);
+    const name = (localProfile && localProfile.name)
+      || (cloudProfile && cloudProfile.name)
+      || email.split('@')[0];
+    return { email, name, color };
+  });
+}
+
+// Todo/Goalタブが直近で受け取ったメンバー情報（postMessageで問い合わせてきたときに返す用）
+let lastMemberInfo = [];
+
+// Todo/Goalなど埋め込みiframe側にも同じ色・名前を渡す
+// （担当者の色をMemberリストと固定でそろえるため）
+function broadcastMembersToIframes(memberInfo) {
+  document.querySelectorAll('iframe.embedded-page').forEach(iframe => {
+    if (!iframe.contentWindow) return;
+    try {
+      iframe.contentWindow.postMessage({ type: 'tb-members-update', members: memberInfo }, '*');
+    } catch (e) { /* ignore */ }
+  });
+}
+
+async function renderMembers(emails) {
   const box = document.getElementById('member-list');
+
+  const memberInfo = await resolveMemberInfo(emails);
+  lastMemberInfo = memberInfo;
+  broadcastMembersToIframes(memberInfo);
+
   if (!box) return;
-  box.innerHTML = emails.map((email, i) => {
-    // 自分自身については、アカウントごとに保存してあるお気に入りの色を優先して使う
-    const profile = loadUserProfile(email);
-    const color = (profile && profile.favoriteColor) || CATEGORY_COLORS[i % CATEGORY_COLORS.length];
-    const initial = email.trim()[0]?.toUpperCase() || '?';
+  // Member欄はメールアドレスではなく、設定してもらった名前を表示する
+  // （招待欄は引き続きメールアドレスで入力してもらう。そちらは変更していない）
+  box.innerHTML = memberInfo.map(({ email, name, color }) => {
+    const displayName = name || email;
+    const initial = displayName.trim()[0]?.toUpperCase() || '?';
     const isYou = currentUser && email === currentUser.email;
     return `<div class="member-row">
       <div class="member-avatar" style="background:${color}">${initial}</div>
-      <span class="member-email">${escHtml(email)}${isYou?'<span class="member-you">（あなた）</span>':''}</span>
+      <span class="member-email">${escHtml(displayName)}${isYou?'<span class="member-you">（あなた）</span>':''}</span>
     </div>`;
   }).join('');
 }
@@ -562,6 +659,15 @@ tabs.forEach(tab => {
 window.addEventListener('message', (e) => {
   if (e.data && e.data.type === 'tb-alarm-fired') {
     showGlobalAlarmBanner(e.data.title);
+  }
+  // Todo/Goalタブのiframeが読み込まれた直後に「メンバー情報をください」と
+  // 聞いてくるので、今わかっている最新のメンバー情報（色・名前）を返す。
+  // こうしておくと、iframeが先に読み込み終わっていても後から読み込んでも
+  // 確実にメンバーの色を受け取れる。
+  if (e.data && e.data.type === 'tb-request-members') {
+    if (e.source && typeof e.source.postMessage === 'function') {
+      e.source.postMessage({ type: 'tb-members-update', members: lastMemberInfo }, '*');
+    }
   }
 });
 
