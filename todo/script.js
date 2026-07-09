@@ -100,54 +100,47 @@ const statusMap = {
   'completed': { text: '完了', class: 'status-completed' }
 };
 
+// 表示する並び順：上から「未着手 → 進行中 → 完了」に固定する。
+// 以前は担当者ごとにグループ化して表示していたため、削除した担当者の
+// 位置に新しいタスクが紛れ込んだように見えたり、完了済みのタスクが
+// 上の方に残ったままになったりしていた。
+const statusRank = { 'not-started': 0, 'ongoing': 1, 'completed': 2 };
+
 // タスク一覧を描画する関数
 function renderTodos() {
   listContainer.innerHTML = ''; // 一度クリア
 
-  const groups = [];
-  const groupMap = {};
+  // ステータスの順番だけで並べ替える（同じステータス内はFirestoreに
+  // 登録した順のまま＝安定ソートなので順番が入れ替わらない）
+  const sorted = [...todos].sort((a, b) => (statusRank[a.status] ?? 0) - (statusRank[b.status] ?? 0));
 
-  todos.forEach(todo => {
-    const assignee = todo.assignee || '未定';
-    // メールアドレスが分かっていればそちらでグループ化する（同姓同名の別人と
-    // 混ざらないようにするため。無ければ従来どおり名前で代用する）
-    const key = todo.assigneeEmail || assignee;
-    if (!groupMap[key]) {
-      groupMap[key] = { assignee, tasks: [] };
-      groups.push(groupMap[key]);
-    }
-    groupMap[key].tasks.push(todo);
-  });
+  sorted.forEach((todo) => {
+    const row = document.createElement('div');
+    row.className = 'table-row' + (todo.status === 'completed' ? ' completed' : '');
 
-  groups.forEach(group => {
-    group.tasks.forEach((todo) => {
-      const row = document.createElement('div');
-      row.className = 'table-row' + (todo.status === 'completed' ? ' completed' : '');
+    const statusInfo = statusMap[todo.status];
 
-      const statusInfo = statusMap[todo.status];
-
-      row.innerHTML = `
-        <div class="col-check">
-          <input type="checkbox" ${todo.status === 'completed' ? 'checked' : ''} onchange="toggleComplete('${todo.id}')">
-        </div>
-        <div class="col-task">・${todo.task}</div>
-        <div class="col-assignee">
-          <span class="assignee-dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:${colorForAssignee(todo)};"></span>${group.assignee}
-        </div>
-        <div class="col-status">
-          <select class="status-select" onchange="updateStatus('${todo.id}', this.value)">
-            <option value="not-started" ${todo.status === 'not-started' ? 'selected' : ''}>未着手</option>
-            <option value="ongoing" ${todo.status === 'ongoing' ? 'selected' : ''}>進行中</option>
-            <option value="completed" ${todo.status === 'completed' ? 'selected' : ''}>完了</option>
-          </select>
-          <span class="status-badge ${statusInfo.class}">${statusInfo.text}</span>
-        </div>
-        <div class="col-action">
-          <button class="delete-btn" onclick="deleteTodo('${todo.id}')">削除</button>
-        </div>
-      `;
-      listContainer.appendChild(row);
-    });
+    row.innerHTML = `
+      <div class="col-check">
+        <input type="checkbox" ${todo.status === 'completed' ? 'checked' : ''} onchange="toggleComplete('${todo.id}')">
+      </div>
+      <div class="col-task">・${todo.task}</div>
+      <div class="col-assignee">
+        <span class="assignee-dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:${colorForAssignee(todo)};"></span>${todo.assignee || '未定'}
+      </div>
+      <div class="col-status">
+        <select class="status-select" onchange="updateStatus('${todo.id}', this.value)">
+          <option value="not-started" ${todo.status === 'not-started' ? 'selected' : ''}>未着手</option>
+          <option value="ongoing" ${todo.status === 'ongoing' ? 'selected' : ''}>進行中</option>
+          <option value="completed" ${todo.status === 'completed' ? 'selected' : ''}>完了</option>
+        </select>
+        <span class="status-badge ${statusInfo.class}">${statusInfo.text}</span>
+      </div>
+      <div class="col-action">
+        <button class="delete-btn" onclick="deleteTodo('${todo.id}')">削除</button>
+      </div>
+    `;
+    listContainer.appendChild(row);
   });
 }
 

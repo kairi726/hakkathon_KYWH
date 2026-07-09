@@ -75,11 +75,43 @@ function inkColorFor(bgHex){
   return luminance > 0.6 ? '#3A342A' : '#ffffff';
 }
 
+// ------------------------------------------------------------
+// コメント入力欄の状態を、再描画をまたいで覚えておく
+// ------------------------------------------------------------
+// 以前はリアクションやコメントがどこかで来るたびに全部の付箋を
+// 作り直していたため、コメントを入力している途中でも入力欄ごと
+// 消えてしまい、「入力してる時にリアクションとかくるとやり直しになる」
+// 状態になっていた。入力中の文字・開閉状態をここに保存しておき、
+// 再描画のたびに復元する。
+// ------------------------------------------------------------
+const noteUiState = {}; // { [noteId]: { open: bool, draft: string } }
+
 function render(){
   const wrap = document.getElementById('notes');
   if (!wrap) return;
+
+  // 今フォーカスが当たっているコメント入力欄があれば、再描画後に
+  // カーソル位置ごと復元できるよう覚えておく
+  const focused = document.activeElement;
+  let refocus = null;
+  if (wrap.contains(focused) && focused.classList && focused.classList.contains('comment-input')) {
+    refocus = {
+      noteId: focused.closest('[data-note-id]')?.dataset.noteId,
+      selStart: focused.selectionStart,
+      selEnd: focused.selectionEnd,
+    };
+  }
+
   wrap.innerHTML = '';
   notes.forEach(n => wrap.appendChild(buildNoteEl(n)));
+
+  if (refocus && refocus.noteId) {
+    const newInput = wrap.querySelector(`[data-note-id="${refocus.noteId}"] .comment-input`);
+    if (newInput) {
+      newInput.focus();
+      try { newInput.setSelectionRange(refocus.selStart, refocus.selEnd); } catch (e) { /* ignore */ }
+    }
+  }
 }
 
 function normalizeReactionKey(key){
@@ -100,6 +132,7 @@ function toggleReaction(n, key){
 function buildNoteEl(n){
   const el = document.createElement('div');
   el.className = 'note' + (hasActiveReaction(n) ? ' is-reacted' : '');
+  el.dataset.noteId = n.id;
   el.style.setProperty('--r', n.rot + 'deg');
 
   // n.colorが「#rrggbb」形式（＝書いた人の固定色）ならインラインで直接塗る。
@@ -120,6 +153,7 @@ function buildNoteEl(n){
   deleteBtn.onclick = (event) => {
     event.stopPropagation();
     notes = notes.filter((item) => item.id !== n.id);
+    delete noteUiState[n.id];
     render();
     opinionsRef.doc(n.id).delete().catch(err => console.error('付箋の削除に失敗しました', err));
   };
@@ -187,8 +221,12 @@ function buildNoteEl(n){
   toggle.textContent = 'コメントを追加';
   const box = document.createElement('div');
   box.className = 'comment-box';
+  const savedState = noteUiState[n.id];
+  if (savedState && savedState.open) box.classList.add('open');
   const input = document.createElement('input');
+  input.className = 'comment-input';
   input.placeholder = 'コメントを入力';
+  if (savedState && savedState.draft) input.value = savedState.draft;
   const send = document.createElement('button');
   send.textContent = '送信';
   box.appendChild(input);
@@ -219,16 +257,26 @@ function buildNoteEl(n){
     list.appendChild(li);
   });
 
-  toggle.onclick = () => box.classList.toggle('open');
+  toggle.onclick = () => {
+    box.classList.toggle('open');
+    noteUiState[n.id] = Object.assign({}, noteUiState[n.id], { open: box.classList.contains('open') });
+  };
+  // 入力中の文字を覚えておく（再描画をまたいでも消えないように）
+  input.addEventListener('input', () => {
+    noteUiState[n.id] = Object.assign({}, noteUiState[n.id], { open: true, draft: input.value });
+  });
   send.onclick = () => {
     const v = input.value.trim();
     if(!v) return;
     n.comments.push(v);
     input.value = '';
+    noteUiState[n.id] = Object.assign({}, noteUiState[n.id], { draft: '' });
     render();
     opinionsRef.doc(n.id).update({ comments: n.comments }).catch(err => console.error('コメントの追加に失敗しました', err));
   };
-  input.addEventListener('keydown', e => { if(e.key === 'Enter') send.onclick(); });
+  // Enterキーで送信されると、日本語入力の変換確定（IME）でも意図せず送信されて
+  // しまい、文章が途中でバラバラに送られる原因になっていたため、Enterでの
+  // 送信はやめて「送信」ボタンを押したときだけ送信するようにした。
 
   el.appendChild(toggle);
   el.appendChild(box);
