@@ -344,12 +344,43 @@ const accountNameInput = document.getElementById('account-name-input');
 const accountEmailDisplay = document.getElementById('account-email-display');
 const accountSaveBtn = document.getElementById('account-save-btn');
 const accountSaveMsg = document.getElementById('account-save-msg');
+const accountColorPalette = document.getElementById('account-color-palette');
+const accountColorInput = document.getElementById('account-color-input');
+const accountColorPreview = document.getElementById('account-color-preview');
+let selectedAccountColor = CATEGORY_COLORS[0];
+
+// 同じカテゴリー内で色がかぶって見分けづらくなったときのために、
+// 名前の変更と同じ場所で自分の色も選び直せるようにする
+accountColorPalette.innerHTML = CATEGORY_COLORS.map(c =>
+  `<div class="color-swatch" data-color="${c}" style="background:${c}"></div>`
+).join('');
+
+function highlightAccountColor(color) {
+  selectedAccountColor = color;
+  accountColorPalette.querySelectorAll('.color-swatch').forEach(el => {
+    el.classList.toggle('selected', el.dataset.color.toLowerCase() === color.toLowerCase());
+  });
+  accountColorInput.value = /^#[0-9a-f]{6}$/i.test(color) ? color : '#c8f7c5';
+  accountColorPreview.textContent = color;
+}
+
+accountColorPalette.addEventListener('click', (e) => {
+  const swatch = e.target.closest('.color-swatch');
+  if (!swatch) return;
+  highlightAccountColor(swatch.dataset.color);
+});
+
+accountColorInput.addEventListener('input', () => {
+  highlightAccountColor(accountColorInput.value);
+});
 
 function openAccountPanel() {
   if (!currentUser) return;
   accountNameInput.value = currentUser.name || '';
   accountEmailDisplay.textContent = currentUser.email || '';
   accountSaveMsg.textContent = '';
+  const profile = loadUserProfile(currentUser.email);
+  highlightAccountColor((profile && profile.favoriteColor) || currentUser.favoriteColor || CATEGORY_COLORS[0]);
   accountPanel.style.display = 'flex';
 }
 function closeAccountPanel() {
@@ -375,11 +406,14 @@ accountSaveBtn.addEventListener('click', () => {
   }
 
   currentUser.name = newName;
+  currentUser.favoriteColor = selectedAccountColor;
   saveStoredUser(currentUser);
-  saveUserProfile(currentUser.email, { name: newName }); // ローカル＋Firestore（users/<email>）に保存
+  // ローカル＋Firestore（users/<email>）に保存。これでMember欄・Todo・Goal・
+  // Opinion・Calendarどこから見ても、名前と同時に新しい色が反映される
+  saveUserProfile(currentUser.email, { name: newName, favoriteColor: selectedAccountColor });
   updateUserEmailLabel();
 
-  // 今カテゴリー詳細画面を開いていれば、Member欄の名前もすぐに更新する
+  // 今カテゴリー詳細画面を開いていれば、Member欄の名前・色もすぐに更新する
   if (selectedCategoryId) renderMembers(lastCategoryMemberEmails);
 
   accountSaveMsg.style.color = '#0f766e';
