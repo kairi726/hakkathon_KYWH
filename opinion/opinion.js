@@ -274,10 +274,25 @@ function buildNoteEl(n){
     render();
     opinionsRef.doc(n.id).update({ comments: n.comments }).catch(err => console.error('コメントの追加に失敗しました', err));
   };
-  // Enterキーで送信されると、日本語入力の変換確定（IME）でも意図せず送信されて
-  // しまい、文章が途中でバラバラに送られる原因になっていたため、Enterでの
-  // 送信はやめて「送信」ボタンを押したときだけ送信するようにした。
 
+  // Enterキー2回押しで送信できるようにする。
+  // ただし日本語入力の変換確定（IME）でEnterが誤検知されると、文章が
+  // 途中でバラバラに送信されてしまうため、e.isComposingがtrueの間
+  // （変換中）は無視する。500ms以内に2回Enterが押されたときだけ送信する。
+  let lastEnterAt = 0;
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+
+    const now = Date.now();
+    if (now - lastEnterAt < 500) {
+      e.preventDefault();
+      lastEnterAt = 0;
+      send.click();
+    } else {
+      lastEnterAt = now;
+    }
+  });
+  
   el.appendChild(toggle);
   el.appendChild(box);
   if(n.comments.length) el.appendChild(list);
