@@ -15,7 +15,9 @@
       <div class="todo-table">
         <form id="todo-form" class="todo-form">
           <input id="task-input" type="text" placeholder="タスク名" required>
-          <input id="assignee-input" type="text" placeholder="担当者">
+          <select id="assignee-input">
+            <option value="">未定</option>
+          </select>
           <select id="status-input">
             <option value="not-started">未着手</option>
             <option value="ongoing">進行中</option>
@@ -37,6 +39,9 @@
     </section>
   </main>
 
+  <!-- Firebase SDK（compat版）。カテゴリー内の全メンバーでTodoを共有するために使う -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

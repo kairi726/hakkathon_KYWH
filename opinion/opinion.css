@@ -303,6 +303,39 @@ body{
 .memo-btn:active{
   background:#f0eae0;
 }
+.link-input-wrapper{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  margin:0 0 10px;
+  padding:8px 10px;
+  border:1px solid #D0C9C0;
+  border-radius:6px;
+  background:#fffdf8;
+}
+.link-input-wrapper input{
+  flex:1;
+  border:none;
+  outline:none;
+  background:transparent;
+  font-size:13px;
+  color:var(--ink);
+}
+.link-input-wrapper button{
+  border:none;
+  border-radius:4px;
+  padding:6px 10px;
+  font-size:12px;
+  cursor:pointer;
+}
+.link-input-submit{
+  background:var(--ink);
+  color:#fff;
+}
+.link-input-cancel{
+  background:#f0eae0;
+  color:var(--ink);
+}
 .memo-separator{
   display:inline-block;
   width:1px;

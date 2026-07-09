@@ -29,10 +29,13 @@
       <p class="col-heading">Memo</p>
       <div class="memo-panel">
         <div class="memo-toolbar">
-          <div class="memo-toolbar">
-            <button class="memo-btn" data-command="createLink" title="リンク">🔗</button>
-            <button class="memo-btn" data-command="insertUnorderedList" title="リスト">•</button>
-          </div>
+          <button class="memo-btn" data-command="createLink" title="リンク">🔗</button>
+          <button class="memo-btn" data-command="insertUnorderedList" title="リスト">•</button>
+        </div>
+        <div class="link-input-wrapper" id="linkInputWrapper" style="display:none;">
+          <input type="url" id="linkUrlInput" placeholder="https://example.com" />
+          <button type="button" class="link-input-submit" id="linkSubmitBtn">追加</button>
+          <button type="button" class="link-input-cancel" id="linkCancelBtn">キャンセル</button>
         </div>
         <div id="memo" class="memo-editor" contenteditable="true" spellcheck="true"></div>
         <div class="save-hint" id="memoHint"></div>
@@ -41,6 +44,9 @@
   </div>
 </div>
 
+<!-- Firebase SDK（compat版）。付箋・メモをカテゴリー内の全メンバーで共有するために使う -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="opinion.js"></script>
 </body>
 </html>
