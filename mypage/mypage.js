@@ -101,11 +101,35 @@ let unsubCategories = null;
 let unsubCategoryDoc = null;
 let unsubGoalDoc = null;
 let saveTimer = null;
+let lastCategoryMemberEmails = []; // 今表示中のカテゴリーのメンバー一覧（名前変更後にMember欄をすぐ再描画するため）
 
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+// メールアドレスの表記ゆれ（大文字・小文字、前後の空白）で招待が届かない事故を防ぐため、
+// 保存・比較の前に必ずこれを通す（大文字で登録しても小文字で招待しても一致するように）
+function normEmail(s) { return String(s || '').trim().toLowerCase(); }
+
 // 招待リンクの ?join=... を一時保存（ログイン後に処理する）
 const pendingJoinId = new URLSearchParams(location.search).get('join');
+
+// ------------------------------------------------------------
+// 招待の「見た目での通知」
+// ------------------------------------------------------------
+// 実際のメール送信（SMTP等）を行うには外部サービスの契約・APIキー設定が
+// 必要になるため、代わりにこのマイページ自身で「招待されている」ことが
+// はっきり分かるようにする：招待されたカテゴリーが初めて自分の一覧に
+// 現れたときに、バナーと「NEW」バッジで知らせる。
+// ------------------------------------------------------------
+function seenCategoriesKey(email) { return 'tb_seen_categories_' + normEmail(email); }
+function loadSeenCategoryIds(email) {
+  try { return new Set(JSON.parse(localStorage.getItem(seenCategoriesKey(email))) || []); }
+  catch { return new Set(); }
+}
+function markCategoriesSeen(email, ids) {
+  const set = loadSeenCategoryIds(email);
+  ids.forEach(id => set.add(id));
+  try { localStorage.setItem(seenCategoriesKey(email), JSON.stringify([...set])); } catch { /* ignore */ }
+}
 
 // ============================================================
 // ログイン画面のロジック
@@ -235,7 +259,7 @@ authForm.addEventListener('submit', (event) => {
 
   if (isSignup) {
     const name = document.getElementById('name').value.trim();
-    const email = document.getElementById('email').value.trim();
+    const email = normEmail(document.getElementById('email').value);
 
     if (!name) {
       formMessage.style.color = '#b91c1c';
@@ -269,7 +293,7 @@ authForm.addEventListener('submit', (event) => {
   // ログイン：まだ色を選んだことが無いアカウントは、色を選んでもらってから
   // ログインを完了する（自動で先へ進めてしまうと色選択がちらっと見えるだけで
   // 終わってしまうため、ここでは自動遷移せず一旦止める）。
-  const email = document.getElementById('email').value.trim();
+  const email = normEmail(document.getElementById('email').value);
   const nameValue = document.getElementById('name').value.trim(); // ログイン画面では入力欄が隠れているため空のことが多い
 
   const existingProfile = loadUserProfile(email);
@@ -303,9 +327,75 @@ document.getElementById('logout-btn').addEventListener('click', () => {
   document.getElementById('login-screen').style.display = '';
 });
 
+function updateUserEmailLabel() {
+  // 右上にはメールアドレスは出さず、名前だけ表示する
+  document.getElementById('user-name-btn').textContent = currentUser.name || '（名前未設定）';
+}
+
+// ------------------------------------------------------------
+// 右上の名前ボタン：押すとアカウント情報パネルがマイページ上に開き、
+// その場で名前を変更できる（以前はwindow.prompt()を使っていたが、
+// 環境によってはダイアログがブロックされて反応しないことがあったため、
+// ページ内のパネルに変更した）。
+// ------------------------------------------------------------
+const userNameBtn = document.getElementById('user-name-btn');
+const accountPanel = document.getElementById('account-panel');
+const accountNameInput = document.getElementById('account-name-input');
+const accountEmailDisplay = document.getElementById('account-email-display');
+const accountSaveBtn = document.getElementById('account-save-btn');
+const accountSaveMsg = document.getElementById('account-save-msg');
+
+function openAccountPanel() {
+  if (!currentUser) return;
+  accountNameInput.value = currentUser.name || '';
+  accountEmailDisplay.textContent = currentUser.email || '';
+  accountSaveMsg.textContent = '';
+  accountPanel.style.display = 'flex';
+}
+function closeAccountPanel() {
+  accountPanel.style.display = 'none';
+}
+
+userNameBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (accountPanel.style.display === 'flex') {
+    closeAccountPanel();
+  } else {
+    openAccountPanel();
+  }
+});
+
+accountSaveBtn.addEventListener('click', () => {
+  if (!currentUser) return;
+  const newName = accountNameInput.value.trim();
+  if (!newName) {
+    accountSaveMsg.style.color = '#b91c1c';
+    accountSaveMsg.textContent = '名前を空にはできません。';
+    return;
+  }
+
+  currentUser.name = newName;
+  saveStoredUser(currentUser);
+  saveUserProfile(currentUser.email, { name: newName }); // ローカル＋Firestore（users/<email>）に保存
+  updateUserEmailLabel();
+
+  // 今カテゴリー詳細画面を開いていれば、Member欄の名前もすぐに更新する
+  if (selectedCategoryId) renderMembers(lastCategoryMemberEmails);
+
+  accountSaveMsg.style.color = '#0f766e';
+  accountSaveMsg.textContent = '保存しました。';
+});
+
+// パネルの外側をクリックしたら閉じる
+document.addEventListener('click', (e) => {
+  if (accountPanel.style.display === 'flex' && !accountPanel.contains(e.target) && e.target !== userNameBtn) {
+    closeAccountPanel();
+  }
+});
+
 async function startApp() {
   document.getElementById('app-screen').style.display = 'block';
-  document.getElementById('user-email-label').textContent = currentUser.name + ' ・ ' + currentUser.email;
+  updateUserEmailLabel();
 
   if (pendingJoinId) {
     await joinCategoryById(pendingJoinId);
@@ -343,6 +433,7 @@ function subscribeCategories() {
     .onSnapshot(snap => {
       categories = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       renderCategoryChips();
+      updateInviteNotice();
       // 表示中だったカテゴリーが無くなっていたら一覧画面に戻す
       if (selectedCategoryId && !categories.find(c => c.id === selectedCategoryId)) {
         showCategoryListScreen();
@@ -350,13 +441,46 @@ function subscribeCategories() {
     }, err => console.error('categories購読エラー', err));
 }
 
+// 自分が作成者ではない（＝誰かに招待された）カテゴリーのうち、
+// まだ一度も開いたことが無いものを「新しい招待」として扱う
+function getNewInvites() {
+  if (!currentUser) return [];
+  const seen = loadSeenCategoryIds(currentUser.email);
+  return categories.filter(c => c.ownerEmail !== currentUser.email && !seen.has(c.id));
+}
+
+function updateInviteNotice() {
+  const notice = document.getElementById('invite-notice');
+  if (!notice) return;
+  const newInvites = getNewInvites();
+  if (newInvites.length === 0) {
+    notice.style.display = 'none';
+    return;
+  }
+  const names = newInvites.map(c => c.name).join('、');
+  document.getElementById('invite-notice-text').textContent =
+    `🎉 ${newInvites.length}件のカテゴリーに招待されています：${names}`;
+  notice.style.display = 'flex';
+}
+
+document.getElementById('invite-notice-dismiss').addEventListener('click', () => {
+  if (!currentUser) return;
+  markCategoriesSeen(currentUser.email, getNewInvites().map(c => c.id));
+  updateInviteNotice();
+  renderCategoryChips();
+});
+
 function renderCategoryChips() {
   const box = document.getElementById('category-list-chips');
-  box.innerHTML = categories.map(c => `
+  const seen = currentUser ? loadSeenCategoryIds(currentUser.email) : new Set();
+  box.innerHTML = categories.map(c => {
+    const isNew = currentUser && c.ownerEmail !== currentUser.email && !seen.has(c.id);
+    return `
     <div class="category-chip ${c.id===selectedCategoryId?'active':''}"
          style="background:${c.color||CATEGORY_COLORS[0]}"
-         onclick="selectCategory('${c.id}')">${escHtml(c.name)}</div>
-  `).join('');
+         onclick="selectCategory('${c.id}')">${escHtml(c.name)}${isNew ? '<span class="new-badge">NEW</span>' : ''}</div>
+  `;
+  }).join('');
   document.getElementById('no-category-msg').style.display = categories.length ? 'none' : 'flex';
 }
 
@@ -367,10 +491,12 @@ function showCategoryListScreen() {
   document.getElementById('category-list-screen').style.display = 'block';
   document.getElementById('category-form-box').style.display = 'none';
   renderCategoryChips();
+  updateInviteNotice();
 }
 
 window.selectCategory = function (id) {
   selectedCategoryId = id;
+  if (currentUser) markCategoriesSeen(currentUser.email, [id]); // 開いたら「NEW」を消す
   document.getElementById('category-list-screen').style.display = 'none';
   document.getElementById('category-content').style.display = 'block';
   showTabPanel('goal');
@@ -386,7 +512,8 @@ function subscribeSelectedCategory() {
   unsubCategoryDoc = db.collection('categories').doc(selectedCategoryId)
     .onSnapshot(doc => {
       if (!doc.exists) return;
-      renderMembers(doc.data().memberEmails || []);
+      lastCategoryMemberEmails = doc.data().memberEmails || [];
+      renderMembers(lastCategoryMemberEmails);
     });
 
   const goalRef = db.collection('categories').doc(selectedCategoryId).collection('goal').doc('main');
@@ -564,14 +691,16 @@ document.getElementById('delete-category-btn').addEventListener('click', async (
 
 // ===== 招待 =====
 document.getElementById('invite-btn').addEventListener('click', async () => {
-  const email = document.getElementById('invite-email').value.trim();
+  // 大文字・小文字の表記ゆれで「招待したのに相手に届かない」事故を防ぐため、
+  // 保存前に必ず正規化する（相手のアカウントのメールアドレスも同じ正規化を通してある）
+  const email = normEmail(document.getElementById('invite-email').value);
   const msgEl = document.getElementById('invite-msg');
   if (!email || !selectedCategoryId) return;
   try {
     await db.collection('categories').doc(selectedCategoryId).update({
       memberEmails: FieldValue.arrayUnion(email),
     });
-    msgEl.textContent = email + ' を招待しました（相手がこのメールでログインすると表示されます）';
+    msgEl.textContent = email + ' を招待しました。相手が次にこのメールアドレスでマイページを開くと、カテゴリー一覧に「招待されています」というお知らせと一緒に表示されます。';
     document.getElementById('invite-email').value = '';
   } catch (err) {
     msgEl.textContent = '招待に失敗しました：' + (err.message || err.code);
@@ -582,12 +711,40 @@ document.getElementById('invite-btn').addEventListener('click', async () => {
 document.getElementById('share-link-btn').addEventListener('click', async () => {
   if (!selectedCategoryId) return;
   const url = location.origin + location.pathname + '?join=' + selectedCategoryId;
+
+  const resultBox = document.getElementById('share-link-result');
+  const linkInput = document.getElementById('share-link-text');
+  const msgEl = document.getElementById('share-link-copied-msg');
+
+  // window.alert()/prompt()は環境によってはブロックされて何も起きないことが
+  // あったため使わない。リンクは必ずこの欄に表示するので、コピーが失敗しても
+  // ここから選択して手動でコピー・共有できる。
+  linkInput.value = url;
+  resultBox.style.display = 'flex';
+  linkInput.focus();
+  linkInput.select();
+
+  let copied = false;
   try {
-    await navigator.clipboard.writeText(url);
-    alert('共有リンクをコピーしました：\n' + url);
-  } catch {
-    prompt('このリンクをコピーしてください：', url);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(url);
+      copied = true;
+    }
+  } catch (e) { copied = false; }
+
+  if (!copied) {
+    // Clipboard APIが使えない環境向けのフォールバック
+    try { copied = document.execCommand('copy'); } catch (e) { copied = false; }
   }
+
+  // 確認ボタンを押さなくていい、ふわっと出て自動で消えるパステルの通知
+  msgEl.textContent = copied
+    ? 'リンクをコピーしました！'
+    : 'コピーできませんでした。上の欄から手動でコピーしてください。';
+  msgEl.classList.toggle('is-error', !copied);
+  msgEl.classList.add('show');
+  clearTimeout(msgEl._hideTimer);
+  msgEl._hideTimer = setTimeout(() => msgEl.classList.remove('show'), 2500);
 });
 
 // ===== Goalテキストの自動保存 =====
