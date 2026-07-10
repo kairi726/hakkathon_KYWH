@@ -596,9 +596,23 @@ const toolbarButtons = document.querySelectorAll('.memo-btn[data-command]');
 function updateToolbarState(){
   toolbarButtons.forEach(btn => {
     const cmd = btn.dataset.command;
+    
+    // ⭐【修正】太字やリストの判定
     if(['bold','italic','underline','insertUnorderedList'].includes(cmd)){
       try{
         btn.classList.toggle('active', document.queryCommandState(cmd));
+      }catch(e){}
+    }
+    
+    // ⭐【修正】マーカーボタンの凹み判定を追加
+    if(cmd === 'backColor'){
+      try{
+        // 現在選択されているテキストの背景色が、ボタンのvalue（色）と一致するか判定
+        const curColor = document.queryCommandValue('backColor');
+        // ブラウザによって「rgb(255, 255, 0)」や「yellow」など返し方が違うため、
+        // マーカーが設定されている状態（緑や黄色、あるいは文字以外の色が返ってきた時）ならアクティブにする
+        const isActive = curColor && curColor !== 'rgba(0, 0, 0, 0)' && curColor !== 'transparent' && curColor !== 'windowtext';
+        btn.classList.toggle('active', isActive);
       }catch(e){}
     }
   });
