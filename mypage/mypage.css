@@ -416,6 +416,29 @@ body {
 .help-fire-body span { font-size: 13px; color: #666; }
 .help-fire-dismiss { background: none; border: none; color: #ccc; font-size: 16px; cursor: pointer; }
 
+/* チャットの新着ポップアップバナー（アラーム・助けてーと同じ仕組み。
+   左上は助けてー用に使っているので、こちらは右下に出して重ならないようにする） */
+.chat-fire-banner {
+  position: fixed; bottom: 16px; right: 16px; z-index: 1000;
+  opacity: 0; pointer-events: none; transition: opacity 0.3s;
+}
+.chat-fire-banner.active { opacity: 1; pointer-events: auto; }
+.chat-fire-card {
+  background: #fff; border: 2px solid #cee3be; border-radius: 12px;
+  padding: 14px 18px; box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  display: flex; align-items: flex-start; gap: 12px; max-width: 300px;
+  animation: alarmSlideIn 0.3s ease;
+  cursor: pointer; /* クリックするとそのカテゴリーのChatタブへ飛べる */
+}
+.chat-fire-icon { font-size: 26px; }
+.chat-fire-body { flex: 1; }
+.chat-fire-body strong { font-size: 15px; color: #333; display: block; }
+.chat-fire-body span { font-size: 13px; color: #666; }
+.chat-fire-dismiss { background: none; border: none; color: #ccc; font-size: 16px; cursor: pointer; }
+
 /* 一覧画面の「助けを求めています」パネル・バッジ */
-.help-requests-box { border: 2px solid #ffd0d0; }
+.help-requests-box { border: 2px solid #ffd0d0; margin-top: 22px; }
 .today-task-badge-help { background: #ffe0e0; color: #c23b3b; }
+
+.chat-notifications-box { border: 2px solid #cee3be; }
+.today-task-badge-chat { background: #e5f2da; color: #4a6b34; }

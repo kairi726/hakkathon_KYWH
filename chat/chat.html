@@ -13,13 +13,31 @@
 
   <div class="chat-messages" id="chatMessages"></div>
 
+  <p id="chatUploadStatus" class="chat-upload-status"></p>
+
+  <!-- 画像を選ぶと、送信する前にここにプレビューが出る -->
+  <div id="chatImagePreview" class="chat-image-preview" style="display:none;">
+    <img id="chatImagePreviewImg" alt="選択した画像のプレビュー">
+    <button type="button" id="chatImagePreviewRemove" class="chat-image-preview-remove" aria-label="画像の選択を取り消す">✕</button>
+  </div>
+
   <form id="chatForm" class="chat-form">
+    <button type="button" id="chatImageBtn" class="chat-image-btn" aria-label="画像を送る">📷</button>
+    <input type="file" id="chatImageInput" accept="image/*" style="display:none;">
     <textarea id="chatInput" class="chat-input" placeholder="メッセージを入力（Enterで送信・Shift+Enterで改行）" rows="1"></textarea>
     <button type="submit" class="chat-send-btn">送信</button>
   </form>
 </div>
 
-<!-- Firebase SDK（compat版）。チャットをカテゴリー内の全メンバーで共有するために使う -->
+<!-- 送信済みの写真をタップすると、ここに大きく表示する（背景をクリックしても閉じる） -->
+<div id="chatImageLightbox" class="chat-image-lightbox" style="display:none;">
+  <img id="chatImageLightboxImg" alt="拡大した画像">
+  <button type="button" id="chatImageLightboxClose" class="chat-image-lightbox-close" aria-label="閉じる">✕</button>
+</div>
+
+<!-- Firebase SDK（compat版）。チャットをカテゴリー内の全メンバーで共有するために使う。
+     画像はFirebase Storageを使わず、圧縮してFirestoreに直接保存するので
+     firebase-storage-compat.jsは不要 -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="chat.js"></script>
