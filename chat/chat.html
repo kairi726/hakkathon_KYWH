@@ -29,6 +29,12 @@
   </form>
 </div>
 
+<!-- 送信済みの写真をタップすると、ここに大きく表示する（背景をクリックしても閉じる） -->
+<div id="chatImageLightbox" class="chat-image-lightbox" style="display:none;">
+  <img id="chatImageLightboxImg" alt="拡大した画像">
+  <button type="button" id="chatImageLightboxClose" class="chat-image-lightbox-close" aria-label="閉じる">✕</button>
+</div>
+
 <!-- Firebase SDK（compat版）。チャットをカテゴリー内の全メンバーで共有するために使う。
      画像はFirebase Storageを使わず、圧縮してFirestoreに直接保存するので
      firebase-storage-compat.jsは不要 -->

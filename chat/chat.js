@@ -117,6 +117,31 @@ function formatTime(ts) {
   return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
 }
 
+// ------------------------------------------------------------
+// 写真のライトボックス：送信済みの写真をタップすると、画面いっぱいに
+// 大きく表示する（✕ボタン、または背景クリックで閉じる）。
+// ------------------------------------------------------------
+const chatImageLightbox = document.getElementById('chatImageLightbox');
+const chatImageLightboxImg = document.getElementById('chatImageLightboxImg');
+const chatImageLightboxClose = document.getElementById('chatImageLightboxClose');
+
+function openImageLightbox(url) {
+  if (!chatImageLightbox || !chatImageLightboxImg || !url) return;
+  chatImageLightboxImg.src = url;
+  chatImageLightbox.style.display = 'flex';
+}
+function closeImageLightbox() {
+  if (!chatImageLightbox) return;
+  chatImageLightbox.style.display = 'none';
+  if (chatImageLightboxImg) chatImageLightboxImg.src = '';
+}
+if (chatImageLightboxClose) chatImageLightboxClose.addEventListener('click', closeImageLightbox);
+if (chatImageLightbox) {
+  chatImageLightbox.addEventListener('click', (e) => {
+    if (e.target === chatImageLightbox) closeImageLightbox(); // 背景部分をクリックしたときだけ閉じる
+  });
+}
+
 function render() {
   const wrap = document.getElementById('chatMessages');
   if (!wrap) return;
@@ -164,7 +189,8 @@ function render() {
       const img = document.createElement('img');
       img.className = 'chat-image';
       img.src = m.imageUrl;
-      img.alt = '送信された画像';
+      img.alt = '送信された画像（タップで拡大表示）';
+      img.addEventListener('click', () => openImageLightbox(m.imageUrl));
       col.appendChild(img);
     }
 

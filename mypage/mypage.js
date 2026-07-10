@@ -127,7 +127,7 @@ let notifiedHelpIds = new Set(); // "categoryId:todoId" のセット
 // 気づけるようにする。「助けてー」と同じ考え方だが、対象はchatの新着メッセージ。
 // ------------------------------------------------------------
 let chatUnreadByCategory = {}; // { [categoryId]: {count, catName, catColor, lastAuthor, lastText} }
-let chatLastMessageIdByCategory = {}; // { [categoryId]: string|null }（直近に見たメッセージID）
+let chatSeenMessageIds = {}; // { [categoryId]: Set<messageId> }（通知済み・既存のメッセージID）
 let chatSubsInitialized = {}; // { [categoryId]: boolean }（初回スナップショットかどうか＝既存メッセージで誤通知しないため）
 
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -543,36 +543,42 @@ function subscribeTodayTasksForCategory(cat) {
     renderTodayTasks();
   }, err => console.error('今日のタスク（締切）購読エラー', err));
 
-  // 最新の1件だけを見て、前回見た最新メッセージと違えば「新着」とみなす。
+  // Firestoreの「docChanges()」で本当に新規追加されたドキュメントだけを拾う。
+  // 以前はorderBy('createdAt','desc').limit(1)で「一番新しい1件」だけを比較していたが、
+  // サーバー側のタイムスタンプ確定タイミングや、複数件がまとめて届いた場合に
+  // 取りこぼす可能性があったため、より確実なdocChanges方式に変更した。
   // 初回のスナップショット（＝ページを開いた時点で既にある過去メッセージ）では
   // 通知しない。
   const messagesRef = db.collection('categories').doc(id).collection('messages');
-  const unsubMessages = messagesRef.orderBy('createdAt', 'desc').limit(1).onSnapshot(snap => {
-    const latestDoc = snap.docs[0];
-    const latest = latestDoc ? { id: latestDoc.id, ...latestDoc.data() } : null;
+  const unsubMessages = messagesRef.onSnapshot(snap => {
     const wasInitialized = chatSubsInitialized[id];
     chatSubsInitialized[id] = true;
 
     if (!wasInitialized) {
-      chatLastMessageIdByCategory[id] = latest ? latest.id : null;
+      // 既にある過去メッセージは「見た（＝通知不要）」ものとして記録するだけ
+      chatSeenMessageIds[id] = new Set(snap.docs.map(d => d.id));
       return;
     }
-    if (!latest || latest.id === chatLastMessageIdByCategory[id]) return;
-    chatLastMessageIdByCategory[id] = latest.id;
-    // ※本来は自分の投稿では通知しない作りにしていたが、通知がそもそも届くのか
-    // 切り分けて確認したいとのことなので、一旦は自分の投稿でも（チャット画面を
-    // 開いていても）必ず通知が出るようにしている。動作確認できたら、自分の
-    // 投稿だけ除外する条件を戻すこともできます。
 
-    const preview = latest.text || (latest.imageUrl ? '📷 写真を送信しました' : '');
-    const personName = latest.authorName || latest.authorEmail || '誰か';
-    chatUnreadByCategory[id] = {
-      count: (chatUnreadByCategory[id]?.count || 0) + 1,
-      catName: cat.name, catColor: cat.color,
-      lastAuthor: personName, lastText: preview,
-    };
-    showChatBanner(cat.name, personName, preview);
-    renderChatNotifications();
+    const seen = chatSeenMessageIds[id] || (chatSeenMessageIds[id] = new Set());
+    snap.docChanges().forEach(change => {
+      if (change.type !== 'added') return;
+      if (seen.has(change.doc.id)) return; // 二重通知防止
+      seen.add(change.doc.id);
+
+      const data = change.doc.data();
+      if (data.authorEmail && currentUser && data.authorEmail === currentUser.email) return; // 自分の投稿では通知しない
+
+      const preview = data.text || (data.imageUrl ? '📷 写真を送信しました' : '');
+      const personName = data.authorName || data.authorEmail || '誰か';
+      chatUnreadByCategory[id] = {
+        count: (chatUnreadByCategory[id]?.count || 0) + 1,
+        catName: cat.name, catColor: cat.color,
+        lastAuthor: personName, lastText: preview,
+      };
+      showChatBanner(cat.name, personName, preview);
+      renderChatNotifications();
+    });
   }, err => console.error('チャット通知の購読エラー', err));
 
   todayTaskUnsubs[id] = () => { unsubTodos(); unsubDeadlines(); unsubMessages(); };
@@ -592,7 +598,7 @@ function unsubscribeTodayTasksForCategory(id) {
   renderHelpRequestsList();
 
   delete chatUnreadByCategory[id];
-  delete chatLastMessageIdByCategory[id];
+  delete chatSeenMessageIds[id];
   delete chatSubsInitialized[id];
   renderChatNotifications();
 }

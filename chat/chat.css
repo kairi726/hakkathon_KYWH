@@ -107,6 +107,38 @@ body {
   cursor: pointer;
 }
 
+/* 写真をタップしたときに大きく表示するライトボックス */
+.chat-image-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0,0,0,0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.chat-image-lightbox img {
+  max-width: 92vw;
+  max-height: 88vh;
+  border-radius: 8px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+}
+.chat-image-lightbox-close {
+  position: fixed;
+  top: 18px;
+  right: 22px;
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+  cursor: pointer;
+}
+.chat-image-lightbox-close:hover { background: rgba(255,255,255,0.28); }
+
 .chat-upload-status {
   font-size: 12px;
   color: #5a8a4a;
