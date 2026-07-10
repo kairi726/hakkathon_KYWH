@@ -437,7 +437,7 @@ body {
 .chat-fire-dismiss { background: none; border: none; color: #ccc; font-size: 16px; cursor: pointer; }
 
 /* 一覧画面の「助けを求めています」パネル・バッジ */
-.help-requests-box { border: 2px solid #ffd0d0; }
+.help-requests-box { border: 2px solid #ffd0d0; margin-top: 22px; }
 .today-task-badge-help { background: #ffe0e0; color: #c23b3b; }
 
 .chat-notifications-box { border: 2px solid #cee3be; }

@@ -96,6 +96,8 @@ const EMBED_PAGES = {
 };
 
 let selectedCategoryId = null;
+let currentActiveTab = null; // 今開いているタブ（'goal'|'todo'|'opinion'|'calendar'|'ai'など）。
+                              // Chatタブを実際に見ている間は、そのカテゴリーの通知を出さないようにするため。
 let selectedColor = CATEGORY_COLORS[0];
 let categories = [];
 let unsubCategories = null;
@@ -568,6 +570,10 @@ function subscribeTodayTasksForCategory(cat) {
 
       const data = change.doc.data();
       if (data.authorEmail && currentUser && data.authorEmail === currentUser.email) return; // 自分の投稿では通知しない
+      // 今まさにこのカテゴリーのChatタブを開いて見ているなら、重ねて通知は出さない。
+      // （他のカテゴリーを見ているときや、同じカテゴリーでも別のタブを見ているときは
+      // 今まで通り通知する）
+      if (selectedCategoryId === id && currentActiveTab === 'ai') return;
 
       const preview = data.text || (data.imageUrl ? '📷 写真を送信しました' : '');
       const personName = data.authorName || data.authorEmail || '誰か';
@@ -835,6 +841,7 @@ function renderCategoryChips() {
 // ===== 画面切り替え：一覧 ⇔ 詳細 =====
 function showCategoryListScreen() {
   selectedCategoryId = null;
+  currentActiveTab = null;
   document.getElementById('category-content').style.display = 'none';
   document.getElementById('category-list-screen').style.display = 'block';
   document.getElementById('category-form-box').style.display = 'none';
@@ -1138,6 +1145,8 @@ const panels = document.querySelectorAll('.tab-panel');
 // それが「Goalのデータがカテゴリーをまたいで共有されてしまう」不具合の原因だった）
 function showTabPanel(tabName) {
   if (!tabs.length || !panels.length) return;
+
+  currentActiveTab = tabName;
 
   // Chatタブを実際に開いたら、そのカテゴリーの新着通知は「読んだ」ものとして消す
   if (tabName === 'ai' && selectedCategoryId && chatUnreadByCategory[selectedCategoryId]) {

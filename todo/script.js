@@ -108,9 +108,16 @@ const HELP_REACTIONS = [
 ];
 function helpReactionsHtml(todo) {
   const reactions = todo.helpReactions || {};
+  const myEmail = currentUser ? currentUser.email : null;
   const buttons = HELP_REACTIONS.map(r => {
-    const count = Number(reactions[r.emoji] || 0);
-    return `<button type="button" class="help-reaction-btn${count > 0 ? ' active' : ''}" title="${r.label}" onclick="toggleHelpReaction('${todo.id}', '${r.emoji}')">${r.emoji}${count > 0 ? ' ' + count : ''}</button>`;
+    // helpReactions[emoji] は「押した人のメールアドレスの配列」。以前は0/1の
+    // 単一フラグだったため、誰か1人が押した状態を別の人が押すと自分の分としてではなく
+    // その1人分を取り消してしまっていた（＝実質1人しか押せない不具合）。
+    // 配列にして、自分が押したかどうかを自分のメールアドレスが含まれているかで判定する。
+    const reactors = Array.isArray(reactions[r.emoji]) ? reactions[r.emoji] : [];
+    const count = reactors.length;
+    const isMine = !!(myEmail && reactors.includes(myEmail));
+    return `<button type="button" class="help-reaction-btn${isMine ? ' active' : ''}" title="${r.label}" onclick="toggleHelpReaction('${todo.id}', '${r.emoji}')">${r.emoji}${count > 0 ? ' ' + count : ''}</button>`;
   }).join('');
   return `<span class="help-reactions">${buttons}</span>`;
 }
@@ -274,12 +281,24 @@ window.resolveHelp = function(id) {
   todosRef.doc(id).update({ needsHelp: false }).catch(err => console.error('助けて要請の解除に失敗しました', err));
 };
 
-// 助けてーへのリアクション（🙌応援／💪手伝う）をワンタップでON/OFFする
+// 助けてーへのリアクション（🙌応援／💪手伝う）をワンタップでON/OFFする。
+// 全員が独立して押せるように、押した人のメールアドレスを配列に入れておき、
+// 自分がすでに押していればもう一度押したときに自分の分だけ取り消す
+// （他の人が押した分は消えない）。
 window.toggleHelpReaction = function(id, emoji) {
   const todo = todos.find(t => t.id === id);
   if (!todo) return;
+  const myEmail = currentUser ? currentUser.email : null;
+  if (!myEmail) return; // 自分が誰か分からない場合は何もしない
+
   const reactions = Object.assign({}, todo.helpReactions || {});
-  const current = Number(reactions[emoji] || 0);
-  reactions[emoji] = current > 0 ? 0 : 1;
+  const reactors = Array.isArray(reactions[emoji]) ? reactions[emoji].slice() : [];
+  const idx = reactors.indexOf(myEmail);
+  if (idx >= 0) {
+    reactors.splice(idx, 1);
+  } else {
+    reactors.push(myEmail);
+  }
+  reactions[emoji] = reactors;
   todosRef.doc(id).update({ helpReactions: reactions }).catch(err => console.error('リアクションの更新に失敗しました', err));
 };
