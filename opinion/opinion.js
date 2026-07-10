@@ -635,7 +635,11 @@ function updateToolbarState(){
     }
     
     // ⭐【修正】マーカーボタンの凹み判定を追加
+    // ⭐【修正】マーカーボタンの凹み判定を追加
     if(cmd === 'backColor'){
+      // 💡 文字を打つ前の事前モード中は、ブラウザの自動判定に邪魔させず凹みをキープする
+      if (isPreMarkerMode) return;
+
       try{
         // 現在選択されているテキストの背景色が、ボタンのvalue（色）と一致するか判定
         const curColor = document.queryCommandValue('backColor');
