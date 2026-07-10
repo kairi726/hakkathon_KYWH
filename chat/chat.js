@@ -61,6 +61,17 @@ function getCurrentAuthor() {
   return { email, name };
 }
 
+// ------------------------------------------------------------
+// 「既読」表示：今このChatタブが実際に画面に表示されているかどうか。
+// iframe自体はタブを切り替えても裏で読み込まれたままなので、mypage.js側
+// から「今表示中/非表示になった」をpostMessageで教えてもらう必要がある
+// （そうしないと、見ていないのに既読が付いてしまう）。
+// 初回読み込み時（isChatVisibleの初期値）は「このタブを開いたから読み込まれた」
+// ケースがほとんどなので、trueにしておく。
+// ------------------------------------------------------------
+let isChatVisible = true;
+const markedReadIds = new Set(); // 既に既読を付け終えたメッセージID（同じ書き込みを繰り返さないため）
+
 if (window.parent && window.parent !== window) {
   window.addEventListener('message', (e) => {
     if (e.data && e.data.type === 'tb-members-update') {
@@ -68,8 +79,31 @@ if (window.parent && window.parent !== window) {
       if (e.data.me && e.data.me.email) { myEmail = e.data.me.email; myName = e.data.me.name; }
       render(); // 自分／他人の色・名前が確定した可能性があるので再描画
     }
+    if (e.data && e.data.type === 'tb-panel-visibility') {
+      isChatVisible = !!e.data.visible;
+      if (isChatVisible) markVisibleMessagesRead();
+    }
   });
   window.parent.postMessage({ type: 'tb-request-members' }, '*');
+}
+
+// 今表示中のメッセージのうち、自分以外が送っていて、まだ自分が既読を
+// 付けていないものに、自分のメールアドレスを既読者リスト（readBy）へ追加する。
+// LINEのグループチャットと同じで、「開いて見た」ことをもって既読扱いにする
+// （1件ずつスクロールして見た範囲を厳密に判定はしない、簡易版）。
+function markVisibleMessagesRead() {
+  if (!isChatVisible) return;
+  const email = getCurrentAuthor().email;
+  if (!email) return;
+  messages.forEach(m => {
+    if (m.authorEmail === email) return; // 自分の投稿は既読対象外
+    if (markedReadIds.has(m.id)) return;
+    if (Array.isArray(m.readBy) && m.readBy.includes(email)) { markedReadIds.add(m.id); return; }
+    markedReadIds.add(m.id);
+    messagesRef.doc(m.id).update({
+      readBy: firebase.firestore.FieldValue.arrayUnion(email),
+    }).catch(err => console.warn('既読の更新に失敗しました', err));
+  });
 }
 
 // ------------------------------------------------------------
@@ -142,6 +176,40 @@ function render() {
       col.appendChild(bubble);
     }
 
+    // 自分が送ったメッセージにだけ、何人が既読を付けたか（自分以外の読んだ人数）を表示する。
+    // LINEのグループチャットで見る「既読3」と同じ考え方。
+    // タップすると、実際に誰が読んだか（名前）を確認できるようにする。
+    if (isMine) {
+      const readers = Array.isArray(m.readBy) ? m.readBy.filter(e => e !== m.authorEmail) : [];
+      if (readers.length > 0) {
+        const readWrap = document.createElement('div');
+        readWrap.className = 'chat-read-wrap';
+
+        const readBtn = document.createElement('button');
+        readBtn.type = 'button';
+        readBtn.className = 'chat-read';
+        readBtn.textContent = readers.length > 1 ? `既読 ${readers.length}` : '既読';
+        readBtn.setAttribute('aria-label', '既読した人を見る');
+
+        const detail = document.createElement('div');
+        detail.className = 'chat-read-detail';
+        detail.style.display = 'none';
+        const names = readers.map(email => {
+          const known = knownMembers.find(x => x.email === email);
+          return (known && known.name) || email;
+        });
+        detail.textContent = names.join('、') + 'さんが既読';
+
+        readBtn.addEventListener('click', () => {
+          detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
+        });
+
+        readWrap.appendChild(readBtn);
+        readWrap.appendChild(detail);
+        col.appendChild(readWrap);
+      }
+    }
+
     // 同じ人が同じ時刻（分単位）に連続して送っている場合、時刻はそのかたまりの
     // 一番新しいメッセージにだけ表示する（LINEのように、毎回は表示しない）
     const currentTime = formatTime(m.createdAt);
@@ -167,6 +235,7 @@ function render() {
 messagesRef.orderBy('createdAt', 'asc').onSnapshot(snap => {
   messages = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   render();
+  markVisibleMessagesRead(); // 今画面を見ているなら、届いたばかりのメッセージにも既読を付ける
 }, err => console.error('チャットの購読に失敗しました', err));
 
 // ------------------------------------------------------------

@@ -559,7 +559,10 @@ function subscribeTodayTasksForCategory(cat) {
     }
     if (!latest || latest.id === chatLastMessageIdByCategory[id]) return;
     chatLastMessageIdByCategory[id] = latest.id;
-    if (latest.authorEmail && currentUser && latest.authorEmail === currentUser.email) return; // 自分の投稿では通知しない
+    // ※本来は自分の投稿では通知しない作りにしていたが、通知がそもそも届くのか
+    // 切り分けて確認したいとのことなので、一旦は自分の投稿でも（チャット画面を
+    // 開いていても）必ず通知が出るようにしている。動作確認できたら、自分の
+    // 投稿だけ除外する条件を戻すこともできます。
 
     const preview = latest.text || (latest.imageUrl ? '📷 写真を送信しました' : '');
     const personName = latest.authorName || latest.authorEmail || '誰か';
@@ -1153,6 +1156,15 @@ function showTabPanel(tabName) {
         iframe.style.display = 'block';
       } else {
         iframe.style.display = 'none';
+      }
+
+      // Chatタブ（既読管理）向け：iframe自体はタブを切り替えても裏で読み込まれた
+      // ままなので、「今実際に画面に表示されているか」をここで明示的に伝える。
+      // これが無いと、見ていないタブのメッセージにまで既読が付いてしまう。
+      if (iframe.contentWindow) {
+        try {
+          iframe.contentWindow.postMessage({ type: 'tb-panel-visibility', visible: isActive }, '*');
+        } catch (e) { /* ignore */ }
       }
     }
   });

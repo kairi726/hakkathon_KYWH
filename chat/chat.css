@@ -80,6 +80,22 @@ body {
 
 .chat-time { font-size: 10px; color: #b5ada0; margin: 0 4px; }
 
+/* 自分が送ったメッセージだけに表示する既読数（LINEの「既読」と同じ考え方）。
+   タップすると誰が読んだかの詳細（chat-read-detail）が開く */
+.chat-read-wrap { align-self: flex-end; position: relative; }
+.chat-read {
+  font-size: 10px; color: #7a9e63; margin: 0 4px;
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-family: inherit;
+}
+.chat-read:hover { text-decoration: underline; }
+.chat-read-detail {
+  font-size: 11px; color: #5a6b4a; background: #f3f7ee;
+  border: 1px solid #dbe8cc; border-radius: 8px;
+  padding: 6px 10px; margin: 4px 4px 0; max-width: 220px;
+  white-space: normal; text-align: right;
+}
+
 .chat-empty { text-align: center; color: #bbb; font-size: 13px; padding: 40px 0; }
 
 .chat-image {
