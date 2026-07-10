@@ -251,7 +251,7 @@ function buildNoteEl(n){
     const mySavedComments = JSON.parse(localStorage.getItem('my_posted_comments') || '[]');
     const isMyComment = commentId && mySavedComments.includes(commentId);
 
-    if (isMyComment || typeof c !== 'object') {
+    if (isMyComment) {
       const deleteBtn = document.createElement('button');
       deleteBtn.textContent = '×';
       deleteBtn.style.marginLeft = '8px';
@@ -527,8 +527,8 @@ document.addEventListener('click', (e) => {
   if(!e.target.closest('.memo-color-group')){
     const tcP = document.getElementById('textColorPalette');
     const hlP = document.getElementById('highlightColorPalette');
-    if(tcP) tcP.style.style.display = 'none';
-    if(hlP) hlP.style.style.display = 'none';
+    if(tcP) tcP.style.display = 'none';
+    if(hlP) hlP.style.display = 'none';
   }
 });
 
