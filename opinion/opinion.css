@@ -421,3 +421,11 @@ body{
     color: #2563eb; /* 好みの青色に調整してください */
     text-decoration: underline;
 }
+
+/* メモのツールバーボタンが選択（有効）されている時の見た目 */
+.memo-btn.active {
+  background-color: #e0e0e0 !important; /* ボタンの背景を少し濃いグレーにする */
+  border-color: #999 !important;        /* 枠線も少しクッキリさせる */
+  transform: scale(0.95);               /* 少しボタンが凹んだような演出 */
+  box-shadow: inset 1px 1px 3px rgba(0,0,0,0.2); /* 内側に影をつけて押し込まれてる感を出す */
+}

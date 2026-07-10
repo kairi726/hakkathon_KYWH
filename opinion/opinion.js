@@ -1,4 +1,4 @@
-const COLORS = ['coral','green','amber','lav']; // 古い付箋（authorが無いデータ）向けのフォールバック用クラス名
+const COLORS = ['#f3b6b7','#fef5c1','#ebd0b3','#c3bad3','#cee3be','#e4b8cf']; // 古い付箋（authorが無いデータ）向けのフォールバック用クラス名
 let notes = [];
 let memoTimer = null;
 
@@ -125,7 +125,26 @@ function hasActiveReaction(n){
 function toggleReaction(n, key){
   if (!n.reactions) n.reactions = {};
   const current = Number(n.reactions[key] || 0);
-  n.reactions[key] = current > 0 ? 0 : 1;
+
+  // このブラウザでこれまでに押したリアクションの記録を読み込む
+  const myReactions = JSON.parse(localStorage.getItem('my_reactions') || '{}');
+  
+  // 「付箋のID_絵文字」をセットにして、自分が過去に押したか判定するキーを作る
+  const reactionKey = `${n.id}_${key}`;
+
+  if (myReactions[reactionKey]) {
+    // 💡 すでに押している場合は、1減らす（キャンセル）
+    n.reactions[key] = Math.max(0, current - 1);
+    delete myReactions[reactionKey]; // 記録から消す
+  } else {
+    // 💡 まだ押していない場合は、1増やす
+    n.reactions[key] = current + 1;
+    myReactions[reactionKey] = true; // 押した記録を残す
+  }
+
+  // 更新した記録をブラウザに保存
+  localStorage.setItem('my_reactions', JSON.stringify(myReactions));
+  
   return n.reactions[key];
 }
 
@@ -165,7 +184,15 @@ function buildNoteEl(n){
 
   const text = document.createElement('div');
   text.className = 'note-text';
-  text.contentEditable = 'true';
+  
+  // ⭐【修正】自分が作った付箋、またはログインしていない古い付箋のみ編集可能にする
+  const currentUser = getCurrentAuthor();
+  if (!n.authorEmail || n.authorEmail === currentUser.email) {
+    text.contentEditable = 'true';
+  } else {
+    text.contentEditable = 'false'; // 他人の付箋は編集不可（読み取り専用）にする
+  }
+  
   text.spellcheck = true;
   text.setAttribute('data-placeholder', 'アイデアを入力');
   text.textContent = n.text;
@@ -232,52 +259,99 @@ function buildNoteEl(n){
   box.appendChild(input);
   box.appendChild(send);
 
+// ーーー 220行目付近のここから差し替え ーーー
   const list = document.createElement('ul');
   list.className = 'comment-list';
   n.comments.forEach((c, idx) => {
     const li = document.createElement('li');
     const span = document.createElement('span');
-    span.textContent = c;
+    
+    // 過去の古いデータ（ただの文字）か、新しいデータ（オブジェクト形式）かを判定してテキストを取得
+    const commentText = (typeof c === 'object' && c !== null) ? c.text : c;
+    
+    // 画面にはコメントの本文だけを表示（ユーザー名は表示しない）
+    span.textContent = commentText;
     li.appendChild(span);
-    const deleteBtn = document.createElement('button');
-    deleteBtn.textContent = '×';
-    deleteBtn.style.marginLeft = '8px';
-    deleteBtn.style.cursor = 'pointer';
-    deleteBtn.style.border = 'none';
-    deleteBtn.style.background = 'none';
-    deleteBtn.style.color = 'inherit';
-    deleteBtn.style.fontSize = '16px';
-    deleteBtn.style.padding = '0';
-    deleteBtn.onclick = () => {
-      n.comments.splice(idx, 1);
-      render();
-      opinionsRef.doc(n.id).update({ comments: n.comments }).catch(err => console.error('コメントの削除に失敗しました', err));
-    };
-    li.appendChild(deleteBtn);
+
+    // 削除ボタンの表示判定（自分がこのブラウザで投稿したコメント、または古いデータのみ×を出す）
+    const commentId = (typeof c === 'object' && c !== null) ? c.id : null;
+    const mySavedComments = JSON.parse(localStorage.getItem('my_posted_comments') || '[]');
+    const isMyComment = commentId && mySavedComments.includes(commentId);
+
+    if (isMyComment) {
+      const deleteBtn = document.createElement('button');
+      deleteBtn.textContent = '×';
+      deleteBtn.style.marginLeft = '8px';
+      deleteBtn.style.cursor = 'pointer';
+      deleteBtn.style.border = 'none';
+      deleteBtn.style.background = 'none';
+      deleteBtn.style.color = 'inherit';
+      deleteBtn.style.fontSize = '16px';
+      deleteBtn.style.padding = '0';
+      deleteBtn.onclick = () => {
+        n.comments.splice(idx, 1);
+        render();
+        opinionsRef.doc(n.id).update({ comments: n.comments }).catch(err => console.error('コメントの削除に失敗しました', err));
+      };
+      li.appendChild(deleteBtn);
+    }
     list.appendChild(li);
   });
+  // ーーー ここまで差し替え ーーー
 
   toggle.onclick = () => {
     box.classList.toggle('open');
     noteUiState[n.id] = Object.assign({}, noteUiState[n.id], { open: box.classList.contains('open') });
   };
+
   // 入力中の文字を覚えておく（再描画をまたいでも消えないように）
   input.addEventListener('input', () => {
     noteUiState[n.id] = Object.assign({}, noteUiState[n.id], { open: true, draft: input.value });
   });
+
+// ーーー 287行目（スクリーンショットの場所） ーーー
   send.onclick = () => {
     const v = input.value.trim();
     if(!v) return;
-    n.comments.push(v);
+
+    // コメントごとにランダムな固有IDを作る
+    const newCommentId = 'c_' + Math.random().toString(36).substring(2, 15);
+
+    // 自分が送ったコメントIDを、自分のブラウザのlocalStorageに保存
+    const mySavedComments = JSON.parse(localStorage.getItem('my_posted_comments') || '[]');
+    mySavedComments.push(newCommentId);
+    localStorage.setItem('my_posted_comments', JSON.stringify(mySavedComments));
+
+    // FirestoreにはIDとテキストだけを保存
+    n.comments.push({
+      id: newCommentId,
+      text: v
+    });
+    
     input.value = '';
     noteUiState[n.id] = Object.assign({}, noteUiState[n.id], { draft: '' });
     render();
     opinionsRef.doc(n.id).update({ comments: n.comments }).catch(err => console.error('コメントの追加に失敗しました', err));
   };
-  // Enterキーで送信されると、日本語入力の変換確定（IME）でも意図せず送信されて
-  // しまい、文章が途中でバラバラに送られる原因になっていたため、Enterでの
-  // 送信はやめて「送信」ボタンを押したときだけ送信するようにした。
 
+  // Enterキー2回押しで送信できるようにする。
+  // ただし日本語入力の変換確定（IME）でEnterが誤検知されると、文章が
+  // 途中でバラバラに送信されてしまうため、e.isComposingがtrueの間
+  // （変換中）は無視する。500ms以内に2回Enterが押されたときだけ送信する。
+  let lastEnterAt = 0;
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+
+    const now = Date.now();
+    if (now - lastEnterAt < 500) {
+      e.preventDefault();
+      lastEnterAt = 0;
+      send.click();
+    } else {
+      lastEnterAt = now;
+    }
+  });
+  
   el.appendChild(toggle);
   el.appendChild(box);
   if(n.comments.length) el.appendChild(list);
@@ -439,7 +513,6 @@ if(linkUrlInput) {
   });
 }
 
-// ツールバーボタンのコマンド実行（存在チェック用の安全ガード付き）
 document.querySelectorAll('.memo-btn:not(.memo-text-color-btn):not(.memo-highlight-btn)').forEach(btn => {
   btn.addEventListener('click', (e) => {
     e.preventDefault();
@@ -450,12 +523,13 @@ document.querySelectorAll('.memo-btn:not(.memo-text-color-btn):not(.memo-highlig
     }
 
     hideLinkInput();
-    document.execCommand(command);
+    
+    document.execCommand(command, false, btn.value || null);
+    
     if(memoEl) memoEl.focus();
     updateToolbarState();
   });
 });
-
 // 💡 存在しないカラーパレット処理でエラーが出ないよう安全ガード付きに変更
 const textColorBtn = document.querySelector('.memo-text-color-btn');
 if(textColorBtn) {
@@ -480,8 +554,8 @@ document.addEventListener('click', (e) => {
   if(!e.target.closest('.memo-color-group')){
     const tcP = document.getElementById('textColorPalette');
     const hlP = document.getElementById('highlightColorPalette');
-    if(tcP) tcP.style.style.display = 'none';
-    if(hlP) hlP.style.style.display = 'none';
+    if(tcP) tcP.style.display = 'none';
+    if(hlP) hlP.style.display = 'none';
   }
 });
 
