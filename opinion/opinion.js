@@ -524,7 +524,10 @@ document.querySelectorAll('.memo-btn:not(.memo-text-color-btn):not(.memo-highlig
     }
 
     hideLinkInput();
-    document.execCommand(command);
+    // ⭐【修正】ボタンに「value（色など）」が設定されていたら、それも一緒に実行するようにする
+    const val = btn.value || null;
+    document.execCommand(command, false, val);
+    
     if(memoEl) memoEl.focus();
     updateToolbarState();
   });
