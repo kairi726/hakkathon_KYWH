@@ -8,7 +8,7 @@
 </head>
 <body>
 
-<!-- ===== ログイン画面（別ファイルに分けず、このページに直接組み込み） ===== -->
+<!-- ===== ログイン画面 ===== -->
 <div id="login-screen" class="login-screen">
   <main class="auth-card">
     <div class="auth-header">
@@ -71,6 +71,9 @@
 
 <!-- どのタブを見ていてもアラームに気づけるよう、ページ全体で共通のバナー -->
 <div id="global-alarm-banner" class="alarm-fire-banner"></div>
+
+<!-- どのタブを見ていても「助けてー」に気づけるよう、ページ全体で共通のバナー -->
+<div id="global-help-banner" class="help-fire-banner"></div>
 
 <!-- ===== メインアプリ ===== -->
 <div id="app-screen" class="app-screen" style="display:none;">
@@ -136,6 +139,18 @@
     <div class="add-category-center">
       <button id="add-category-btn" class="add-btn-big">＋ カテゴリーを追加する</button>
     </div>
+
+    <!-- 全カテゴリー横断で、今まさに助けを求めているタスクをまとめて表示 -->
+    <div id="help-requests-box" class="today-tasks-box help-requests-box" style="display:none;">
+      <h3 class="side-card-title">🆘 助けを求めています</h3>
+      <div id="help-requests-list" class="today-tasks-list"></div>
+    </div>
+
+    <!-- 全カテゴリー横断で、自分が担当のTodoと今日・明日締切のCalendar項目をまとめて表示 -->
+    <div id="today-tasks-box" class="today-tasks-box" style="display:none;">
+      <h3 class="side-card-title">今日やるタスク</h3>
+      <div id="today-tasks-list" class="today-tasks-list"></div>
+    </div>
   </div>
 
   <!-- ===== 選択中カテゴリーのコンテンツ（詳細画面） ===== -->
@@ -149,7 +164,7 @@
       <a href="#" class="tab-item tab-todo" data-tab="todo">To do</a>
       <a href="#" class="tab-item tab-opinion" data-tab="opinion">Opinion</a>
       <a href="#" class="tab-item tab-calendar" data-tab="calendar">Calendar</a>
-      <a href="#" class="tab-item tab-ai" data-tab="ai">AI Asistant</a>
+      <a href="#" class="tab-item tab-ai" data-tab="ai">Chat</a>
     </nav>
 
     <div class="cal-layout">
@@ -209,10 +224,10 @@
           <iframe class="embedded-page" style="display:none;" src="../calendar/calender.html"></iframe>
         </div>
 
-        <!-- AI Asistant -->
+        <!-- Chat -->
         <div class="tab-panel" data-panel="ai">
-          <h2 class="page-title">AI Asistant</h2>
-          <p class="placeholder-note">AI Asistant機能は準備中です。</p>
+          <h2 class="page-title">Chat</h2>
+          <iframe class="embedded-page" style="display:none;" src="../chat/chat.html"></iframe>
         </div>
 
       </div>

@@ -92,6 +92,7 @@ const EMBED_PAGES = {
   todo: '../todo/index.html',
   calendar: '../calender/calender.html',
   opinion: '../opinion/opinion.html',
+  ai: '../chat/chat.html', // 「AI Asistant」だったタブを、カテゴリー内チャットに変更
 };
 
 let selectedCategoryId = null;
@@ -102,6 +103,23 @@ let unsubCategoryDoc = null;
 let unsubGoalDoc = null;
 let saveTimer = null;
 let lastCategoryMemberEmails = []; // 今表示中のカテゴリーのメンバー一覧（名前変更後にMember欄をすぐ再描画するため）
+
+// ------------------------------------------------------------
+// 「今日やるタスク」：全カテゴリー横断で、自分が担当のTodo（未完了）と
+// 今日・明日締切のCalendar項目をまとめて表示するためのstate。
+// カテゴリーごとにtodos/deadlinesサブコレクションを購読し、参加している
+// カテゴリーが増減したら購読も追従させる。
+// ------------------------------------------------------------
+let todayTaskUnsubs = {}; // { [categoryId]: () => void }
+let myTodosByCategory = {}; // { [categoryId]: todo[] }（自分担当・未完了のみ）
+let myDeadlinesByCategory = {}; // { [categoryId]: deadline[] }（今日・明日締切のみ）
+
+// 「助けてー」：自分以外の担当タスクがneedsHelp:trueになったら、カテゴリーの
+// 全メンバーに知らせる。helpRequestsByCategoryは常に今アクティブな要請の一覧、
+// notifiedHelpIdsは「もうポップアップ済み」の要請を覚えておいて、解決されるまで
+// 同じ要請で何度もポップアップが出ないようにするためのもの。
+let helpRequestsByCategory = {}; // { [categoryId]: {id, task, assignee, assigneeEmail}[] }
+let notifiedHelpIds = new Set(); // "categoryId:todoId" のセット
 
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
@@ -318,6 +336,8 @@ document.getElementById('logout-btn').addEventListener('click', () => {
   if (unsubCategories) unsubCategories();
   if (unsubCategoryDoc) unsubCategoryDoc();
   if (unsubGoalDoc) unsubGoalDoc();
+  unsubscribeAllTodayTasks();
+  categories = [];
   currentUser = null;
   pendingSignupEmail = null;
   localStorage.removeItem(USER_KEY);
@@ -468,11 +488,206 @@ function subscribeCategories() {
       categories = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       renderCategoryChips();
       updateInviteNotice();
+      syncTodayTaskSubscriptions();
+      renderTodayTasks();
       // 表示中だったカテゴリーが無くなっていたら一覧画面に戻す
       if (selectedCategoryId && !categories.find(c => c.id === selectedCategoryId)) {
         showCategoryListScreen();
       }
     }, err => console.error('categories購読エラー', err));
+}
+
+// ------------------------------------------------------------
+// 今日やるタスク：カテゴリーごとのtodos/deadlines購読を、参加カテゴリーの
+// 増減に合わせて追加・解除する
+// ------------------------------------------------------------
+function todayDateStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function tomorrowDateStr() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function subscribeTodayTasksForCategory(cat) {
+  const id = cat.id;
+  if (todayTaskUnsubs[id]) return; // 既に購読済み
+
+  const todosRef = db.collection('categories').doc(id).collection('todos');
+  const deadlinesRef = db.collection('categories').doc(id).collection('deadlines');
+
+  const unsubTodos = todosRef.onSnapshot(snap => {
+    const allTodos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    myTodosByCategory[id] = allTodos.filter(t => t.assigneeEmail === currentUser.email && t.status !== 'completed');
+    updateHelpRequestsForCategory(id, cat, allTodos);
+    renderTodayTasks();
+  }, err => console.error('今日のタスク（Todo）購読エラー', err));
+
+  const unsubDeadlines = deadlinesRef.onSnapshot(snap => {
+    const today = todayDateStr();
+    const tomorrow = tomorrowDateStr();
+    myDeadlinesByCategory[id] = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(d => !d.done && d.datetime && (d.datetime.slice(0, 10) === today || d.datetime.slice(0, 10) === tomorrow));
+    renderTodayTasks();
+  }, err => console.error('今日のタスク（締切）購読エラー', err));
+
+  todayTaskUnsubs[id] = () => { unsubTodos(); unsubDeadlines(); };
+}
+
+function unsubscribeTodayTasksForCategory(id) {
+  if (todayTaskUnsubs[id]) {
+    todayTaskUnsubs[id]();
+    delete todayTaskUnsubs[id];
+  }
+  delete myTodosByCategory[id];
+  delete myDeadlinesByCategory[id];
+  delete helpRequestsByCategory[id];
+  Array.from(notifiedHelpIds).forEach(key => {
+    if (key.startsWith(id + ':')) notifiedHelpIds.delete(key);
+  });
+  renderHelpRequestsList();
+}
+
+// 自分以外の担当タスクで助けを求めているものを拾い、
+// ①一覧画面に表示し続ける、②新しく出てきたものだけポップアップで知らせる
+function updateHelpRequestsForCategory(catId, cat, allTodos) {
+  const active = allTodos.filter(t => t.needsHelp && t.assigneeEmail !== currentUser.email);
+  helpRequestsByCategory[catId] = active.map(t => ({
+    id: t.id, task: t.task, assignee: t.assignee, assigneeEmail: t.assigneeEmail,
+  }));
+
+  active.forEach(t => {
+    const key = catId + ':' + t.id;
+    if (!notifiedHelpIds.has(key)) {
+      notifiedHelpIds.add(key);
+      showHelpBanner(cat.name, t.assignee || t.assigneeEmail || '誰か', t.task);
+    }
+  });
+
+  // 解決済みになったものはキーを消して、また助けを求めたら再度ポップアップされるようにする
+  const activeKeys = new Set(active.map(t => catId + ':' + t.id));
+  Array.from(notifiedHelpIds).forEach(key => {
+    if (key.startsWith(catId + ':') && !activeKeys.has(key)) notifiedHelpIds.delete(key);
+  });
+
+  renderHelpRequestsList();
+}
+
+function showHelpBanner(catName, personName, taskName) {
+  const banner = document.getElementById('global-help-banner');
+  if (!banner) return;
+  banner.innerHTML = `<div class="help-fire-card">
+    <span class="help-fire-icon">🆘</span>
+    <div class="help-fire-body">
+      <strong>${escHtml(catName)}</strong>
+      <span>${escHtml(personName)}さんが「${escHtml(taskName)}」で助けてー、と言っています</span>
+    </div>
+    <button class="help-fire-dismiss" onclick="document.getElementById('global-help-banner').classList.remove('active')">✕</button>
+  </div>`;
+  banner.classList.add('active');
+  setTimeout(() => banner.classList.remove('active'), 12000);
+}
+
+function renderHelpRequestsList() {
+  const box = document.getElementById('help-requests-box');
+  const list = document.getElementById('help-requests-list');
+  if (!box || !list) return;
+
+  const items = [];
+  categories.forEach(cat => {
+    (helpRequestsByCategory[cat.id] || []).forEach(r => {
+      items.push({
+        catId: cat.id, catName: cat.name, catColor: cat.color,
+        task: r.task, person: r.assignee || r.assigneeEmail || '誰か',
+      });
+    });
+  });
+
+  if (items.length === 0) {
+    box.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+
+  box.style.display = 'block';
+  list.innerHTML = items.map(it => `
+    <div class="today-task-item" onclick="selectCategory('${it.catId}')">
+      <span class="today-task-cat" style="background:${it.catColor || CATEGORY_COLORS[0]}">${escHtml(it.catName)}</span>
+      <span class="today-task-badge today-task-badge-help">🆘 助けてー</span>
+      <span class="today-task-title">${escHtml(it.person)}さん：${escHtml(it.task)}</span>
+    </div>
+  `).join('');
+}
+
+function syncTodayTaskSubscriptions() {
+  const currentIds = new Set(categories.map(c => c.id));
+  categories.forEach(cat => subscribeTodayTasksForCategory(cat));
+  Object.keys(todayTaskUnsubs).forEach(id => {
+    if (!currentIds.has(id)) unsubscribeTodayTasksForCategory(id);
+  });
+}
+
+function unsubscribeAllTodayTasks() {
+  Object.keys(todayTaskUnsubs).forEach(id => unsubscribeTodayTasksForCategory(id));
+}
+
+function renderTodayTasks() {
+  const box = document.getElementById('today-tasks-box');
+  const list = document.getElementById('today-tasks-list');
+  if (!box || !list) return;
+
+  const today = todayDateStr();
+  const items = [];
+  categories.forEach(cat => {
+    (myTodosByCategory[cat.id] || []).forEach(t => {
+      items.push({ type: 'todo', catId: cat.id, catName: cat.name, catColor: cat.color, title: t.task, status: t.status });
+    });
+    (myDeadlinesByCategory[cat.id] || []).forEach(d => {
+      items.push({
+        type: 'deadline', catId: cat.id, catName: cat.name, catColor: cat.color,
+        title: d.title, datetime: d.datetime, isToday: d.datetime.slice(0, 10) === today,
+      });
+    });
+  });
+
+  if (items.length === 0) {
+    box.style.display = 'block';
+    list.innerHTML = '<p class="today-tasks-empty">今日やるべきタスクはありません。</p>';
+    return;
+  }
+
+  // 締切が近い順（今日締切→明日締切）に並べ、その後にTodoを続ける
+  items.sort((a, b) => {
+    if (a.type === 'deadline' && b.type === 'deadline') return a.datetime.localeCompare(b.datetime);
+    if (a.type === 'deadline') return -1;
+    if (b.type === 'deadline') return 1;
+    return 0;
+  });
+
+  box.style.display = 'block';
+  list.innerHTML = items.map(it => {
+    const catChip = `<span class="today-task-cat" style="background:${it.catColor || CATEGORY_COLORS[0]}">${escHtml(it.catName)}</span>`;
+    if (it.type === 'deadline') {
+      const badgeClass = it.isToday ? 'today-task-badge-deadline-today' : 'today-task-badge-deadline-tomorrow';
+      const badgeText = it.isToday ? '今日締切' : '明日締切';
+      return `
+      <div class="today-task-item" onclick="selectCategory('${it.catId}')">
+        ${catChip}
+        <span class="today-task-badge ${badgeClass}">${badgeText}</span>
+        <span class="today-task-title">${escHtml(it.title)}</span>
+      </div>`;
+    }
+    const statusText = it.status === 'ongoing' ? '進行中' : '未着手';
+    return `
+    <div class="today-task-item" onclick="selectCategory('${it.catId}')">
+      ${catChip}
+      <span class="today-task-badge today-task-badge-todo">${statusText}</span>
+      <span class="today-task-title">${escHtml(it.title)}</span>
+    </div>`;
+  }).join('');
 }
 
 // 自分が作成者ではない（＝誰かに招待された）カテゴリーのうち、
@@ -613,13 +828,24 @@ async function resolveMemberInfo(emails) {
 // Todo/Goalタブが直近で受け取ったメンバー情報（postMessageで問い合わせてきたときに返す用）
 let lastMemberInfo = [];
 
+// 「自分が誰か」をiframe側に伝えるための情報。
+// 以前はTodo/Opinion/Goal/Calendarの各iframeが自分でlocalStorageの
+// tb_current_userを読んでいたが、HTMLファイルを直接開いた場合（file://）は
+// ファイルごとに保存領域が分かれてしまい、親ページ（mypage.html）が保存した
+// localStorageがiframe側からは見えない、という問題があった（ローカルサーバー
+// 経由やhttps配信では問題なく共有されるが、file://だと共有されない）。
+// postMessageは通信元の保存領域に関係なく届くので、こちらに乗せて渡す。
+function currentUserForIframes() {
+  return currentUser ? { email: currentUser.email, name: currentUser.name } : null;
+}
+
 // Todo/Goalなど埋め込みiframe側にも同じ色・名前を渡す
 // （担当者の色をMemberリストと固定でそろえるため）
 function broadcastMembersToIframes(memberInfo) {
   document.querySelectorAll('iframe.embedded-page').forEach(iframe => {
     if (!iframe.contentWindow) return;
     try {
-      iframe.contentWindow.postMessage({ type: 'tb-members-update', members: memberInfo }, '*');
+      iframe.contentWindow.postMessage({ type: 'tb-members-update', members: memberInfo, me: currentUserForIframes() }, '*');
     } catch (e) { /* ignore */ }
   });
 }
@@ -857,7 +1083,7 @@ window.addEventListener('message', (e) => {
   // 確実にメンバーの色を受け取れる。
   if (e.data && e.data.type === 'tb-request-members') {
     if (e.source && typeof e.source.postMessage === 'function') {
-      e.source.postMessage({ type: 'tb-members-update', members: lastMemberInfo }, '*');
+      e.source.postMessage({ type: 'tb-members-update', members: lastMemberInfo, me: currentUserForIframes() }, '*');
     }
   }
 });

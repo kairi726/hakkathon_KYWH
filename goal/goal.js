@@ -86,12 +86,18 @@ const ctx = chartCanvas ? chartCanvas.getContext('2d') : null;
 // 使うことで、円グラフの色もMemberリスト・Todoの担当者色と完全に一致させる。
 // ------------------------------------------------------------
 let knownMembers = []; // [{ email, name, color }, ...]
+// 「自分が誰か」もpostMessageで受け取る（HTMLファイルを直接開いた場合=file://だと
+// 親ページのlocalStorageがこのiframeから見えないことがあるため、loadStoredUser()
+// だけに頼らずこちらを優先する）
+let myEmail = null;
+let myName = null;
 
 if (window.parent && window.parent !== window) {
   window.addEventListener('message', (e) => {
     if (e.data && e.data.type === 'tb-members-update' && Array.isArray(e.data.members)) {
       knownMembers = e.data.members;
-      init(); // 色・件数が変わっている可能性があるので再描画
+      if (e.data.me && e.data.me.email) { myEmail = e.data.me.email; myName = e.data.me.name; }
+      init(); // 色・件数・自分の判定が変わっている可能性があるので再描画
     }
   });
   window.parent.postMessage({ type: 'tb-request-members' }, '*');
@@ -142,8 +148,7 @@ function getMemberColor(name, index) {
 // メールアドレスで固定された色を使う版（mypage.jsからメンバー情報を
 // 受け取れているときはこちらを使う）
 function buildMembersFromKnown() {
-  const currentUser = loadStoredUser();
-  const currentEmail = currentUser?.email || null;
+  const currentEmail = myEmail || loadStoredUser()?.email || null;
   const memberMap = new Map(); // key: email（不明分は '未定' 固定キー）
 
   knownMembers.forEach(m => {
