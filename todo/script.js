@@ -94,7 +94,8 @@ window.toggleHelpMenu = function(id) {
 function helpButtonHtml(todo) {
   const isMine = !!(currentUser && todo.assigneeEmail && todo.assigneeEmail === currentUser.email);
   if (!isMine) {
-    return todo.needsHelp ? `<span class="help-badge">🆘 助けてほしいそうです</span>` : '';
+    if (!todo.needsHelp) return '';
+    return `<span class="help-badge">🆘 助けてほしい</span>${helpReactionsHtml(todo)}`;
   }
   if (todo.status === 'completed') return '';
 
@@ -107,6 +108,22 @@ function helpButtonHtml(todo) {
     return `<button type="button" class="help-toggle-btn" onclick="toggleHelpMenu('${todo.id}')">🆘 選択</button>`;
   }
   return `<button type="button" class="help-btn" onclick="requestHelp('${todo.id}')">助けてー</button>`;
+}
+
+// 助けを求めている人への、軽いリアクションボタン。
+// （自分がその場で手伝いに行くほどではなくても、「見たよ」「応援してる」を
+//   ワンタップで伝えられるようにする）
+const HELP_REACTIONS = [
+  { emoji: '🙌', label: '応援' },
+  { emoji: '💪', label: '手伝う' },
+];
+function helpReactionsHtml(todo) {
+  const reactions = todo.helpReactions || {};
+  const buttons = HELP_REACTIONS.map(r => {
+    const count = Number(reactions[r.emoji] || 0);
+    return `<button type="button" class="help-reaction-btn${count > 0 ? ' active' : ''}" title="${r.label}" onclick="toggleHelpReaction('${todo.id}', '${r.emoji}')">${r.emoji}${count > 0 ? ' ' + count : ''}</button>`;
+  }).join('');
+  return `<span class="help-reactions">${buttons}</span>`;
 }
 
 function populateAssigneeOptions() {
@@ -268,4 +285,14 @@ window.requestHelp = function(id) {
 window.resolveHelp = function(id) {
   helpMenuOpen[id] = false; // 選んだらメニューを閉じる
   todosRef.doc(id).update({ needsHelp: false }).catch(err => console.error('助けて要請の解除に失敗しました', err));
+};
+
+// 助けてーへのリアクション（🙌応援／💪手伝う）をワンタップでON/OFFする
+window.toggleHelpReaction = function(id, emoji) {
+  const todo = todos.find(t => t.id === id);
+  if (!todo) return;
+  const reactions = Object.assign({}, todo.helpReactions || {});
+  const current = Number(reactions[emoji] || 0);
+  reactions[emoji] = current > 0 ? 0 : 1;
+  todosRef.doc(id).update({ helpReactions: reactions }).catch(err => console.error('リアクションの更新に失敗しました', err));
 };

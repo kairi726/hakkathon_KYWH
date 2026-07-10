@@ -72,17 +72,17 @@ body {
 /* レイアウトの共通グリッド設定 */
 .table-header, .table-row {
   display: grid;
-  grid-template-columns: 40px 2fr 1fr 1fr 190px;
+  grid-template-columns: 40px 2fr 1fr 1fr 250px;
   align-items: center;
   padding: 12px 0;
 }
 
-/* 操作列：削除ボタンの横に「助けてー」ボタン/バッジを並べる */
+/* 操作列：削除ボタンの横に「助けてー」ボタン/バッジ/リアクションを並べる */
 .col-action {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
@@ -206,4 +206,25 @@ body {
   cursor: pointer;
 }
 .help-toggle-btn:hover { background: #ececec; }
+
+/* 助けてーへのリアクション（🙌応援／💪手伝う） */
+.help-reactions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.help-reaction-btn {
+  padding: 2px 7px;
+  border-radius: 12px;
+  border: 1px solid #ddd;
+  background: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  line-height: 1.5;
+}
+.help-reaction-btn:hover { background: #f5f5f5; }
+.help-reaction-btn.active {
+  background: #fff0d6;
+  border-color: #f2b84b;
+}
 
