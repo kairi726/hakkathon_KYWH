@@ -75,37 +75,26 @@ function colorForAssignee(todo) {
   return palette[Math.abs(hash) % palette.length];
 }
 
-// 「助けてー」選択メニューの開閉状態（ローカルUIだけの状態。Firestoreには保存しない）
-let helpMenuOpen = {}; // { [todoId]: boolean }
-
-window.toggleHelpMenu = function(id) {
-  helpMenuOpen[id] = !helpMenuOpen[id];
-  renderTodos();
-};
-
 // 「助けてー」ボタン／バッジのHTML。
-// ・自分が担当のタスクは、最初は何も出さず「🆘 選択」ボタンだけを表示する。
-// ・「🆘 選択」を押すと「助けてー」ボタンが出る。
-// ・「助けてー」を押すと実際に要請が送られ、以後はその場所に「🆘 解決した」が
-//   表示され続ける（「選択」には戻らない）。
-// ・「🆘 解決した」を押すと要請が取り下げられ、また「🆘 選択」の状態に戻る。
+// ・自分が担当のタスクは「助けてー」ボタンを直接表示する（選択ステップは無し）。
+// ・押すと実際に要請が送られ、以後は同じ場所に「🆘 解決した」が表示される。
+// ・「🆘 解決した」を押すと要請が取り下げられ、また「助けてー」に戻る。
 // ・他人が担当のタスクで助けを求めている場合は、押せないバッジだけ表示して
 //   同じカテゴリーの全員がひと目で気づけるようにする。
+// ・リアクション（🙌応援／💪手伝う）は、助けを求めている本人にも他のメンバーにも
+//   同じように見える（Firestoreに保存されるので、押した人だけでなく全員に反映される）。
 function helpButtonHtml(todo) {
   const isMine = !!(currentUser && todo.assigneeEmail && todo.assigneeEmail === currentUser.email);
+
   if (!isMine) {
     if (!todo.needsHelp) return '';
     return `<span class="help-badge">🆘 助けてほしい</span>${helpReactionsHtml(todo)}`;
   }
+
   if (todo.status === 'completed') return '';
 
-  // 助けを求めている最中は、常に「解決した」を表示し続ける（選択には戻らない）
   if (todo.needsHelp) {
-    return `<button type="button" class="help-btn help-btn-active" onclick="resolveHelp('${todo.id}')">🆘 解決した</button>`;
-  }
-
-  if (!helpMenuOpen[todo.id]) {
-    return `<button type="button" class="help-toggle-btn" onclick="toggleHelpMenu('${todo.id}')">🆘 選択</button>`;
+    return `<button type="button" class="help-btn help-btn-active" onclick="resolveHelp('${todo.id}')">🆘 解決した</button>${helpReactionsHtml(todo)}`;
   }
   return `<button type="button" class="help-btn" onclick="requestHelp('${todo.id}')">助けてー</button>`;
 }
@@ -273,7 +262,6 @@ window.updateStatus = function(id, newStatus) {
 // 「助けてー」を送信：同じカテゴリーの全員に通知が届く（mypage.js側がFirestoreを
 // 見てポップアップ・一覧表示する）
 window.requestHelp = function(id) {
-  helpMenuOpen[id] = false; // 選んだらメニューを閉じる
   todosRef.doc(id).update({
     needsHelp: true,
     helpRequestedByEmail: currentUser ? currentUser.email : null,
@@ -283,7 +271,6 @@ window.requestHelp = function(id) {
 
 // 「解決した」：助けて要請を取り下げる
 window.resolveHelp = function(id) {
-  helpMenuOpen[id] = false; // 選んだらメニューを閉じる
   todosRef.doc(id).update({ needsHelp: false }).catch(err => console.error('助けて要請の解除に失敗しました', err));
 };
 

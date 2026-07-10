@@ -194,19 +194,6 @@ body {
   font-weight: bold;
 }
 
-/* 「🆘 選択」トグルボタン（押すまでは何も出さず、これだけ表示する） */
-.help-toggle-btn {
-  padding: 3px 10px;
-  border-radius: 12px;
-  border: 1px solid #ccc;
-  background: #f5f5f5;
-  color: #777;
-  font-size: 12px;
-  font-weight: bold;
-  cursor: pointer;
-}
-.help-toggle-btn:hover { background: #ececec; }
-
 /* 助けてーへのリアクション（🙌応援／💪手伝う） */
 .help-reactions {
   display: inline-flex;

@@ -92,6 +92,7 @@ const EMBED_PAGES = {
   todo: '../todo/index.html',
   calendar: '../calender/calender.html',
   opinion: '../opinion/opinion.html',
+  ai: '../chat/chat.html', // 「AI Asistant」だったタブを、カテゴリー内チャットに変更
 };
 
 let selectedCategoryId = null;

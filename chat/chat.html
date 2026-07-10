@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat</title>
+<link rel="stylesheet" href="chat.css">
+</head>
+<body>
+<div class="chat-wrap">
+  <h1 class="chat-title">Chat</h1>
+  <p class="chat-sub">カテゴリーのメンバー同士でリアルタイムにやり取りできます</p>
+
+  <div class="chat-messages" id="chatMessages"></div>
+
+  <form id="chatForm" class="chat-form">
+    <textarea id="chatInput" class="chat-input" placeholder="メッセージを入力（Enterで送信・Shift+Enterで改行）" rows="1"></textarea>
+    <button type="submit" class="chat-send-btn">送信</button>
+  </form>
+</div>
+
+<!-- Firebase SDK（compat版）。チャットをカテゴリー内の全メンバーで共有するために使う -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="chat.js"></script>
+</body>
+</html>
