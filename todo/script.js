@@ -28,6 +28,21 @@ const db = firebase.firestore();
 const todosRef = db.collection('categories').doc(CATEGORY_ID).collection('todos');
 
 // ------------------------------------------------------------
+// 「助けてー」機能：自分の担当タスクが終わらないときに、同じカテゴリーの
+// メンバー全員に助けを求められるようにする。
+// ログイン中のユーザー情報はmypage.jsと同じlocalStorage（同一オリジンの
+// iframeなので、そのまま同じlocalStorageが読める）から取得する。
+// ------------------------------------------------------------
+function loadStoredUser() {
+  try { return JSON.parse(localStorage.getItem('tb_current_user')); } catch (e) { return null; }
+}
+// localStorage経由の値はあくまで初期値（ローカルサーバー/https配信ならこれで十分）。
+// HTMLファイルを直接開いた場合（file://）はファイルごとに保存領域が分かれてしまい
+// 親ページのlocalStorageが見えないため、下のpostMessage（tb-members-update内のme）
+// で受け取った値があればそちらを優先して上書きする。
+let currentUser = loadStoredUser();
+
+// ------------------------------------------------------------
 // 担当者の色を固定するための、Memberリストとの連携
 // ------------------------------------------------------------
 // 以前は「担当者」が自由入力のテキストで、名前が一致するかどうかでしか
@@ -60,6 +75,40 @@ function colorForAssignee(todo) {
   return palette[Math.abs(hash) % palette.length];
 }
 
+// 「助けてー」選択メニューの開閉状態（ローカルUIだけの状態。Firestoreには保存しない）
+let helpMenuOpen = {}; // { [todoId]: boolean }
+
+window.toggleHelpMenu = function(id) {
+  helpMenuOpen[id] = !helpMenuOpen[id];
+  renderTodos();
+};
+
+// 「助けてー」ボタン／バッジのHTML。
+// ・自分が担当のタスクは、最初は何も出さず「🆘 選択」ボタンだけを表示する。
+// ・「🆘 選択」を押すと「助けてー」ボタンが出る。
+// ・「助けてー」を押すと実際に要請が送られ、以後はその場所に「🆘 解決した」が
+//   表示され続ける（「選択」には戻らない）。
+// ・「🆘 解決した」を押すと要請が取り下げられ、また「🆘 選択」の状態に戻る。
+// ・他人が担当のタスクで助けを求めている場合は、押せないバッジだけ表示して
+//   同じカテゴリーの全員がひと目で気づけるようにする。
+function helpButtonHtml(todo) {
+  const isMine = !!(currentUser && todo.assigneeEmail && todo.assigneeEmail === currentUser.email);
+  if (!isMine) {
+    return todo.needsHelp ? `<span class="help-badge">🆘 助けてほしいそうです</span>` : '';
+  }
+  if (todo.status === 'completed') return '';
+
+  // 助けを求めている最中は、常に「解決した」を表示し続ける（選択には戻らない）
+  if (todo.needsHelp) {
+    return `<button type="button" class="help-btn help-btn-active" onclick="resolveHelp('${todo.id}')">🆘 解決した</button>`;
+  }
+
+  if (!helpMenuOpen[todo.id]) {
+    return `<button type="button" class="help-toggle-btn" onclick="toggleHelpMenu('${todo.id}')">🆘 選択</button>`;
+  }
+  return `<button type="button" class="help-btn" onclick="requestHelp('${todo.id}')">助けてー</button>`;
+}
+
 function populateAssigneeOptions() {
   const select = document.getElementById('assignee-input');
   if (!select) return;
@@ -77,8 +126,9 @@ if (window.parent && window.parent !== window) {
   window.addEventListener('message', (e) => {
     if (e.data && e.data.type === 'tb-members-update' && Array.isArray(e.data.members)) {
       knownMembers = e.data.members;
+      if (e.data.me && e.data.me.email) currentUser = e.data.me;
       populateAssigneeOptions();
-      renderTodos(); // 色が変わっている可能性があるので再描画
+      renderTodos(); // 色・自分の判定が変わっている可能性があるので再描画
     }
   });
   // 親ページ（mypage.js）に、今のメンバー情報をちょうだいとお願いする
@@ -138,6 +188,7 @@ function renderTodos() {
       </div>
       <div class="col-action">
         <button class="delete-btn" onclick="deleteTodo('${todo.id}')">削除</button>
+        ${helpButtonHtml(todo)}
       </div>
     `;
     listContainer.appendChild(row);
@@ -200,4 +251,21 @@ window.deleteTodo = function(id) {
 // ステータス更新ユーティリティ
 window.updateStatus = function(id, newStatus) {
   todosRef.doc(id).update({ status: newStatus }).catch(err => console.error('更新に失敗しました', err));
+};
+
+// 「助けてー」を送信：同じカテゴリーの全員に通知が届く（mypage.js側がFirestoreを
+// 見てポップアップ・一覧表示する）
+window.requestHelp = function(id) {
+  helpMenuOpen[id] = false; // 選んだらメニューを閉じる
+  todosRef.doc(id).update({
+    needsHelp: true,
+    helpRequestedByEmail: currentUser ? currentUser.email : null,
+    helpRequestedAt: firebase.firestore.FieldValue.serverTimestamp(),
+  }).catch(err => console.error('助けて要請の送信に失敗しました', err));
+};
+
+// 「解決した」：助けて要請を取り下げる
+window.resolveHelp = function(id) {
+  helpMenuOpen[id] = false; // 選んだらメニューを閉じる
+  todosRef.doc(id).update({ needsHelp: false }).catch(err => console.error('助けて要請の解除に失敗しました', err));
 };

@@ -56,12 +56,39 @@ function fallbackColorFromEmail(email){
   for(let i = 0; i < s.length; i++){ hash = s.charCodeAt(i) + ((hash << 5) - hash); }
   return palette[Math.abs(hash) % palette.length];
 }
+// ------------------------------------------------------------
+// 「自分が誰か」をmypage.jsから受け取る仕組み。
+// 以前はlocalStorage（tb_current_user / tb_profile_<email>）だけを見ていたが、
+// HTMLファイルを直接開いた場合（file://）はファイルごとに保存領域が分かれてしまい、
+// 親ページ（mypage.html）が保存したlocalStorageがこのiframeからは見えない、
+// という問題があった。Todo/Goal/Calendarと同じpostMessage
+// （tb-request-members / tb-members-update）に自分のメールアドレスも
+// 乗せてもらい、そこから色・名前を取るようにする（knownMembersは
+// mypage.js側でFirestoreのusersコレクションも見て解決済みの色なので、
+// file://でも正しく揃う）。
+// ------------------------------------------------------------
+let knownMembers = []; // [{ email, name, color }, ...]
+let myEmail = null;
+let myName = null;
+
+if (window.parent && window.parent !== window) {
+  window.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'tb-members-update') {
+      if (Array.isArray(e.data.members)) knownMembers = e.data.members;
+      if (e.data.me && e.data.me.email) { myEmail = e.data.me.email; myName = e.data.me.name; }
+      render(); // 自分の色・名前が確定した可能性があるので再描画
+    }
+  });
+  window.parent.postMessage({ type: 'tb-request-members' }, '*');
+}
+
 function getCurrentAuthor(){
-  const currentUser = loadStoredUser();
-  const email = currentUser?.email || null;
+  const stored = loadStoredUser(); // file://以外なら普通にこれだけでも十分（保険として残す）
+  const email = myEmail || stored?.email || null;
+  const known = email ? knownMembers.find(m => m.email === email) : null;
   const profile = email ? loadUserProfile(email) : null;
-  const color = (profile && profile.favoriteColor) || currentUser?.favoriteColor || fallbackColorFromEmail(email);
-  const name = (profile && profile.name) || currentUser?.name || 'あなた';
+  const color = (known && known.color) || (profile && profile.favoriteColor) || stored?.favoriteColor || fallbackColorFromEmail(email);
+  const name = (known && known.name) || myName || (profile && profile.name) || stored?.name || 'あなた';
   return { email, name, color };
 }
 // 背景色の明るさに応じて、読みやすい文字色（濃い茶 or 白）を選ぶ

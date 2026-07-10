@@ -196,6 +196,31 @@ body {
 }
 .invite-notice #invite-notice-dismiss { font-weight: bold; white-space: nowrap; }
 
+/* 全カテゴリー横断の「今日やるタスク」パネル */
+.today-tasks-box {
+  background: #fff; border-radius: 14px; padding: 14px 16px 16px;
+  margin-bottom: 16px; box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+}
+.today-tasks-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.today-task-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: 10px; background: #faf9f6;
+  cursor: pointer; transition: background 0.15s;
+}
+.today-task-item:hover { background: #f1efe9; }
+.today-task-cat {
+  font-size: 11px; font-weight: bold; color: #4a4a4a;
+  padding: 3px 9px; border-radius: 12px; white-space: nowrap;
+}
+.today-task-badge {
+  font-size: 11px; font-weight: bold; padding: 3px 8px; border-radius: 10px; white-space: nowrap;
+}
+.today-task-badge-todo { background: #e0ecff; color: #1e4f9c; }
+.today-task-badge-deadline-today { background: #ffe1e1; color: #b3261e; }
+.today-task-badge-deadline-tomorrow { background: #fff3cd; color: #8a6600; }
+.today-task-title { font-size: 14px; color: #333; flex: 1; }
+.today-tasks-empty { font-size: 13px; color: #aaa; padding: 6px 2px; }
+
 .add-category-center { display: flex; justify-content: center; margin-top: 14px; }
 
 .back-to-list-btn { display: block; margin-bottom: 10px; }
@@ -372,3 +397,25 @@ body {
 .alarm-fire-body strong { font-size: 15px; color: #333; display: block; }
 .alarm-fire-body span   { font-size: 13px; color: #666; }
 .alarm-fire-dismiss { background: none; border: none; color: #ccc; font-size: 16px; cursor: pointer; }
+
+/* 「助けてー」ポップアップバナー（アラームバナーと同じ仕組み、左上に出して重ならないようにする） */
+.help-fire-banner {
+  position: fixed; top: 16px; left: 16px; z-index: 1000;
+  opacity: 0; pointer-events: none; transition: opacity 0.3s;
+}
+.help-fire-banner.active { opacity: 1; pointer-events: auto; }
+.help-fire-card {
+  background: #fff; border: 2px solid #ff8a8a; border-radius: 12px;
+  padding: 14px 18px; box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  display: flex; align-items: flex-start; gap: 12px; max-width: 320px;
+  animation: alarmSlideIn 0.3s ease;
+}
+.help-fire-icon { font-size: 26px; }
+.help-fire-body { flex: 1; }
+.help-fire-body strong { font-size: 15px; color: #333; display: block; }
+.help-fire-body span { font-size: 13px; color: #666; }
+.help-fire-dismiss { background: none; border: none; color: #ccc; font-size: 16px; cursor: pointer; }
+
+/* 一覧画面の「助けを求めています」パネル・バッジ */
+.help-requests-box { border: 2px solid #ffd0d0; }
+.today-task-badge-help { background: #ffe0e0; color: #c23b3b; }

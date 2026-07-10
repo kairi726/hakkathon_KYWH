@@ -395,6 +395,10 @@ let firedAlarms = new Set(load(FIRED_KEY));
 // 見分けが付かなかった。Member欄・Todo・Goalと同じ色を使うことで統一する。
 // ------------------------------------------------------------
 let knownMembers = []; // [{ email, name, color }, ...]
+// 「自分が誰か」もpostMessageで受け取る（HTMLファイルを直接開いた場合=file://だと
+// 親ページのlocalStorageがこのiframeから見えないことがあるため、loadStoredUser()
+// だけに頼らずこちらを優先する）
+let myEmail = null;
 
 function loadStoredUser() {
   try { return JSON.parse(localStorage.getItem('tb_current_user')); } catch (e) { return null; }
@@ -435,6 +439,7 @@ if (window.parent && window.parent !== window) {
   window.addEventListener('message', (e) => {
     if (e.data && e.data.type === 'tb-members-update' && Array.isArray(e.data.members)) {
       knownMembers = e.data.members;
+      if (e.data.me && e.data.me.email) myEmail = e.data.me.email;
       renderDeadlineList(); renderCalendarGrid();
     }
   });
@@ -534,13 +539,12 @@ document.getElementById('cal-next').addEventListener('click', () => {
 // ===== 締め切り =====
 document.getElementById('deadline-form').addEventListener('submit', e => {
   e.preventDefault();
-  const currentUser = loadStoredUser();
   const item = {
     title:    document.getElementById('dl-title').value.trim(),
     datetime: toDatetimeStr(document.getElementById('dl-date').value, document.getElementById('dl-time').value),
     memo:     document.getElementById('dl-memo').value.trim(),
     done:     false, // 完了フラグ（他機能の完了合図と連携する場合はここを更新する）
-    createdByEmail: currentUser?.email || null, // 登録した人（色をその人の固定色にするため）
+    createdByEmail: myEmail || loadStoredUser()?.email || null, // 登録した人（色をその人の固定色にするため）
     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
   };
   if(!item.title || !item.datetime) return;
