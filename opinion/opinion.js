@@ -513,9 +513,6 @@ if(linkUrlInput) {
   });
 }
 
-// マーカーモード（文字選択なしでボタンを押した状態）を管理する変数
-let isPreMarkerMode = false;
-
 document.querySelectorAll('.memo-btn:not(.memo-text-color-btn):not(.memo-highlight-btn)').forEach(btn => {
   btn.addEventListener('click', (e) => {
     e.preventDefault();
@@ -527,37 +524,18 @@ document.querySelectorAll('.memo-btn:not(.memo-text-color-btn):not(.memo-highlig
 
     hideLinkInput();
     
-    // ⭐【修正】マーカーボタン（backColor）が押された時のWord風処理
+    let val = btn.value || null;
+    
+    // 🎨 太字と全く同じように動かす（すでにマーカーONなら透明にしてOFFにするトグル処理だけ挟む）
     if (command === 'backColor') {
-      const selection = window.getSelection();
-      
-      // ① 文字を範囲選択している場合 ➜ その部分だけにマーカーを引く（または消す）
-      if (selection && !selection.isCollapsed && memoEl.contains(selection.anchorNode)) {
-        const curColor = document.queryCommandValue('backColor');
-        const isActive = curColor && curColor !== 'rgba(0, 0, 0, 0)' && curColor !== 'transparent' && curColor !== 'windowtext';
-        const val = isActive ? 'transparent' : (btn.value || 'yellow');
-        document.execCommand('backColor', false, val);
-      } 
-      // ② 文字を選択していない場合（カーソルがあるだけ・文字を書く前）➜ モードを切り替える
-      else {
-        isPreMarkerMode = !isPreMarkerMode;
-        
-        if (isPreMarkerMode) {
-          // マーカーON：これ以降に書く文字をマーカー色にする
-          document.execCommand('backColor', false, btn.value || 'yellow');
-          btn.classList.add('active');
-        } else {
-          // マーカーOFF：透明（通常テキスト）に戻して、凹みを消す
-          document.execCommand('backColor', false, 'transparent');
-          btn.classList.remove('active');
-        }
-        if(memoEl) memoEl.focus();
-        return; // 文字を打つ前のモード切替なので、ここで処理を終了
+      const curColor = document.queryCommandValue('backColor');
+      const isActive = curColor && curColor !== 'rgba(0, 0, 0, 0)' && curColor !== 'transparent' && curColor !== 'windowtext';
+      if (isActive) {
+        val = 'transparent'; // すでにONなら解除（透明）にする
       }
-    } else {
-      // 通常のボタン（太字など）の処理
-      document.execCommand(command, false, btn.value || null);
     }
+    
+    document.execCommand(command, false, val);
     
     if(memoEl) memoEl.focus();
     updateToolbarState();
@@ -636,15 +614,12 @@ function updateToolbarState(){
     
     // ⭐【修正】マーカーボタンの凹み判定を追加
     // ⭐【修正】マーカーボタンの凹み判定を追加
+    // ⭐【修正】マーカーボタンの凹み判定を追加（太字と全く同じロジックにする）
     if(cmd === 'backColor'){
-      // 💡 文字を打つ前の事前モード中は、ブラウザの自動判定に邪魔させず凹みをキープする
-      if (isPreMarkerMode) return;
-
       try{
-        // 現在選択されているテキストの背景色が、ボタンのvalue（色）と一致するか判定
+        // 現在のカーソル位置（または選択範囲）の背景色をチェック
         const curColor = document.queryCommandValue('backColor');
-        // ブラウザによって「rgb(255, 255, 0)」や「yellow」など返し方が違うため、
-        // マーカーが設定されている状態（緑や黄色、あるいは文字以外の色が返ってきた時）ならアクティブにする
+        // 透明や標準色以外（＝マーカーが効いている状態）なら凹ませる
         const isActive = curColor && curColor !== 'rgba(0, 0, 0, 0)' && curColor !== 'transparent' && curColor !== 'windowtext';
         btn.classList.toggle('active', isActive);
       }catch(e){}
