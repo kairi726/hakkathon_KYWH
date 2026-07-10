@@ -75,6 +75,9 @@
 <!-- どのタブを見ていても「助けてー」に気づけるよう、ページ全体で共通のバナー -->
 <div id="global-help-banner" class="help-fire-banner"></div>
 
+<!-- どのカテゴリー・どのタブを見ていてもチャットの新着に気づけるよう、ページ全体で共通のバナー -->
+<div id="global-chat-banner" class="chat-fire-banner"></div>
+
 <!-- ===== メインアプリ ===== -->
 <div id="app-screen" class="app-screen" style="display:none;">
 
@@ -144,6 +147,12 @@
     <div id="help-requests-box" class="today-tasks-box help-requests-box" style="display:none;">
       <h3 class="side-card-title">🆘 助けを求めています</h3>
       <div id="help-requests-list" class="today-tasks-list"></div>
+    </div>
+
+    <!-- 全カテゴリー横断で、チャットの新着メッセージをまとめて表示 -->
+    <div id="chat-notifications-box" class="today-tasks-box chat-notifications-box" style="display:none;">
+      <h3 class="side-card-title">💬 新着チャット</h3>
+      <div id="chat-notifications-list" class="today-tasks-list"></div>
     </div>
 
     <!-- 全カテゴリー横断で、自分が担当のTodoと今日・明日締切のCalendar項目をまとめて表示 -->

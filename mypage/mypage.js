@@ -121,6 +121,15 @@ let myDeadlinesByCategory = {}; // { [categoryId]: deadline[] }（今日・明�
 let helpRequestsByCategory = {}; // { [categoryId]: {id, task, assignee, assigneeEmail}[] }
 let notifiedHelpIds = new Set(); // "categoryId:todoId" のセット
 
+// ------------------------------------------------------------
+// チャットの新着通知：カテゴリーを問わず、自分以外の誰かがメッセージを
+// 送ったら、今どのタブ・どのカテゴリーを見ていてもポップアップ＋一覧で
+// 気づけるようにする。「助けてー」と同じ考え方だが、対象はchatの新着メッセージ。
+// ------------------------------------------------------------
+let chatUnreadByCategory = {}; // { [categoryId]: {count, catName, catColor, lastAuthor, lastText} }
+let chatLastMessageIdByCategory = {}; // { [categoryId]: string|null }（直近に見たメッセージID）
+let chatSubsInitialized = {}; // { [categoryId]: boolean }（初回スナップショットかどうか＝既存メッセージで誤通知しないため）
+
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // メールアドレスの表記ゆれ（大文字・小文字、前後の空白）で招待が届かない事故を防ぐため、
@@ -534,7 +543,36 @@ function subscribeTodayTasksForCategory(cat) {
     renderTodayTasks();
   }, err => console.error('今日のタスク（締切）購読エラー', err));
 
-  todayTaskUnsubs[id] = () => { unsubTodos(); unsubDeadlines(); };
+  // 最新の1件だけを見て、前回見た最新メッセージと違えば「新着」とみなす。
+  // 初回のスナップショット（＝ページを開いた時点で既にある過去メッセージ）では
+  // 通知しない。
+  const messagesRef = db.collection('categories').doc(id).collection('messages');
+  const unsubMessages = messagesRef.orderBy('createdAt', 'desc').limit(1).onSnapshot(snap => {
+    const latestDoc = snap.docs[0];
+    const latest = latestDoc ? { id: latestDoc.id, ...latestDoc.data() } : null;
+    const wasInitialized = chatSubsInitialized[id];
+    chatSubsInitialized[id] = true;
+
+    if (!wasInitialized) {
+      chatLastMessageIdByCategory[id] = latest ? latest.id : null;
+      return;
+    }
+    if (!latest || latest.id === chatLastMessageIdByCategory[id]) return;
+    chatLastMessageIdByCategory[id] = latest.id;
+    if (latest.authorEmail && currentUser && latest.authorEmail === currentUser.email) return; // 自分の投稿では通知しない
+
+    const preview = latest.text || (latest.imageUrl ? '📷 写真を送信しました' : '');
+    const personName = latest.authorName || latest.authorEmail || '誰か';
+    chatUnreadByCategory[id] = {
+      count: (chatUnreadByCategory[id]?.count || 0) + 1,
+      catName: cat.name, catColor: cat.color,
+      lastAuthor: personName, lastText: preview,
+    };
+    showChatBanner(cat.name, personName, preview);
+    renderChatNotifications();
+  }, err => console.error('チャット通知の購読エラー', err));
+
+  todayTaskUnsubs[id] = () => { unsubTodos(); unsubDeadlines(); unsubMessages(); };
 }
 
 function unsubscribeTodayTasksForCategory(id) {
@@ -549,6 +587,11 @@ function unsubscribeTodayTasksForCategory(id) {
     if (key.startsWith(id + ':')) notifiedHelpIds.delete(key);
   });
   renderHelpRequestsList();
+
+  delete chatUnreadByCategory[id];
+  delete chatLastMessageIdByCategory[id];
+  delete chatSubsInitialized[id];
+  renderChatNotifications();
 }
 
 // 自分以外の担当タスクで助けを求めているものを拾い、
@@ -621,6 +664,52 @@ function renderHelpRequestsList() {
     </div>
   `).join('');
 }
+
+function showChatBanner(catName, personName, preview) {
+  const banner = document.getElementById('global-chat-banner');
+  if (!banner) return;
+  banner.innerHTML = `<div class="chat-fire-card">
+    <span class="chat-fire-icon">💬</span>
+    <div class="chat-fire-body">
+      <strong>${escHtml(catName)}</strong>
+      <span>${escHtml(personName)}さん：${escHtml(preview)}</span>
+    </div>
+    <button class="chat-fire-dismiss" onclick="document.getElementById('global-chat-banner').classList.remove('active')">✕</button>
+  </div>`;
+  banner.classList.add('active');
+  setTimeout(() => banner.classList.remove('active'), 12000);
+}
+
+function renderChatNotifications() {
+  const box = document.getElementById('chat-notifications-box');
+  const list = document.getElementById('chat-notifications-list');
+  if (!box || !list) return;
+
+  const items = Object.keys(chatUnreadByCategory)
+    .map(catId => ({ catId, ...chatUnreadByCategory[catId] }))
+    .filter(it => it.count > 0);
+
+  if (items.length === 0) {
+    box.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+
+  box.style.display = 'block';
+  list.innerHTML = items.map(it => `
+    <div class="today-task-item" onclick="openCategoryChat('${it.catId}')">
+      <span class="today-task-cat" style="background:${it.catColor || CATEGORY_COLORS[0]}">${escHtml(it.catName)}</span>
+      <span class="today-task-badge today-task-badge-chat">💬 ${it.count}件</span>
+      <span class="today-task-title">${escHtml(it.lastAuthor)}さん：${escHtml(it.lastText)}</span>
+    </div>
+  `).join('');
+}
+
+// 新着チャットの一覧をクリックしたら、そのカテゴリーのChatタブを直接開く
+window.openCategoryChat = function (catId) {
+  selectCategory(catId);
+  showTabPanel('ai');
+};
 
 function syncTodayTaskSubscriptions() {
   const currentIds = new Set(categories.map(c => c.id));
@@ -1039,6 +1128,13 @@ const panels = document.querySelectorAll('.tab-panel');
 // それが「Goalのデータがカテゴリーをまたいで共有されてしまう」不具合の原因だった）
 function showTabPanel(tabName) {
   if (!tabs.length || !panels.length) return;
+
+  // Chatタブを実際に開いたら、そのカテゴリーの新着通知は「読んだ」ものとして消す
+  if (tabName === 'ai' && selectedCategoryId && chatUnreadByCategory[selectedCategoryId]) {
+    delete chatUnreadByCategory[selectedCategoryId];
+    renderChatNotifications();
+  }
+
   tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
   panels.forEach(p => {
     const isActive = p.dataset.panel === tabName;
