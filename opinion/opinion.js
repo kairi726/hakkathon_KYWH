@@ -1,4 +1,4 @@
-const COLORS = ['#f3b6b7','#fef5c1','#ebd0b3','#c3bad3','#cee3be','#e4b8cf']; // 古い付箋（authorが無いデータ）向けのフォールバック用クラス名
+const COLORS = ['#ffcfda','#fff5b7','#c8f7c5','#e9d5ff','#cffafe','#e5aad2']; // 古い付箋（authorが無いデータ）向けのフォールバック用クラス名
 let notes = [];
 let memoTimer = null;
 
@@ -50,7 +50,7 @@ function loadUserProfile(email){
 // mypage.js（Member欄）・todo/script.jsのフォールバックと全く同じパレットを使い、
 // 万が一お気に入りの色が未設定のままでも他の画面と色がズレないようにしてある。
 function fallbackColorFromEmail(email){
-  const palette = ['#f3b6b7', '#fef5c1', '#ebd0b3', '#c3bad3', '#cee3be', '#e4b8cf'];
+  const palette = ['#ffcfda','#fff5b7','#c8f7c5','#e9d5ff','#cffafe','#e5aad2'];
   let hash = 0;
   const s = String(email || 'guest');
   for(let i = 0; i < s.length; i++){ hash = s.charCodeAt(i) + ((hash << 5) - hash); }
@@ -184,12 +184,10 @@ function buildNoteEl(n){
   // n.colorが「#rrggbb」形式（＝書いた人の固定色）ならインラインで直接塗る。
   // 古いデータ（coral/green/amber/lavのようなクラス名だけの付箋）は
   // 従来どおりCSSクラスに任せる。
-  if (n.color && n.color.charAt(0) === '#') {
-    el.style.background = n.color;
-    el.style.color = inkColorFor(n.color);
-  } else {
-    el.classList.add('c-' + (n.color || COLORS[0]));
-  }
+  // ⭐【修正】1箇所目でドッキングした「常に最新のマイカラー（displayColor）」を背景色に塗る
+  // ⭐【修正】1箇所目で合流させた「最新のマイカラー、または付箋自体の#カラーコード」で100%綺麗に背景を塗る
+  el.style.background = n.displayColor;
+  el.style.color = inkColorFor(n.displayColor);
 
   const deleteBtn = document.createElement('button');
   deleteBtn.className = 'note-delete';
@@ -447,8 +445,45 @@ if(composerSave) {
 // カテゴリー内の全員に共有されるよう、Firestoreをリアルタイムで購読する。
 // 後からカテゴリーに参加した人がこのページを開いても、これまでの
 // 付箋がそのまま全部表示される。
-opinionsRef.orderBy('createdAt', 'asc').onSnapshot(snap => {
-  notes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+// カテゴリー内の全員に共有されるよう、Firestoreをリアルタイムで購読する。
+// 💡 asyncを追加し、付箋データが届くたびに最新のユーザーコレクション（users）の色情報も一緒にドッキングします
+// カテゴリー内の全員に共有されるよう、Firestoreをリアルタイムで購読する。
+// カテゴリー内の全員に共有されるよう、Firestoreをリアルタイムで購読する。
+// カテゴリー内の全員に共有されるよう、Firestoreをリアルタイムで購読する。
+opinionsRef.orderBy('createdAt', 'asc').onSnapshot(async (snap) => {
+  
+  // ① メンバー全員の最新マイカラーを「users」コレクションから一括取得して辞書を作る
+  const userColors = {};
+  try {
+    const usersSnapshot = await db.collection('users').get();
+    usersSnapshot.forEach(uDoc => {
+      const uData = uDoc.data();
+      // 💡【修正】mypage.jsに合わせてフィールド名を「favoriteColor」に修正！
+      // さらに、ドキュメントのID自体が小文字のメールアドレスになっているため、uDoc.id を使います。
+      if (uData && uData.favoriteColor) {
+        userColors[uDoc.id] = uData.favoriteColor; // { "メールアドレス": "お気に入りの色" }
+      }
+    });
+  } catch (e) {
+    console.log("ユーザー情報の取得に失敗しました:", e);
+  }
+
+  // ② 届いた付箋データに、最新のマイカラーを合流させる
+  notes = snap.docs.map(d => {
+    const data = d.data();
+    
+    // メールアドレスを小文字に揃えて、先ほどusersから持ってきた色を引っ張る
+    const authorKey = data.authorEmail ? data.authorEmail.trim().toLowerCase() : null;
+    const latestMyColor = authorKey ? userColors[authorKey] : null; 
+
+    return {
+      id: d.id,
+      ...data,
+      // 💡 プロフィール（users）の最新色があれば最優先、無ければ付箋が元々持つ色を使う
+      displayColor: latestMyColor || data.color || COLORS[0]
+    };
+  });
+
   render();
 }, err => console.error('付箋の購読に失敗しました', err));
 

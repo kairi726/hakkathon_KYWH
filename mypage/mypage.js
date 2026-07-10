@@ -82,7 +82,7 @@ function syncProfileToCloud(email, profile) {
 let pendingSignupEmail = null;
 
 // カテゴリー用パステルカラー（既存タブ配色に合わせる）
-const CATEGORY_COLORS = ['#f3b6b7', '#fef5c1', '#ebd0b3', '#c3bad3', '#cee3be', '#e4b8cf'];
+const CATEGORY_COLORS = ['#ffcfda','#fff5b7','#c8f7c5','#e9d5ff','#cffafe','#e5aad2'];
 
 // 埋め込みページ（相対パス。mypage/ から見た位置）
 // ※ 以前は 'goal' がこの一覧に無かったため、Goalタブだけ ?category= が
