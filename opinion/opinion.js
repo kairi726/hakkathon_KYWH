@@ -449,6 +449,7 @@ if(composerSave) {
 // 💡 asyncを追加し、付箋データが届くたびに最新のユーザーコレクション（users）の色情報も一緒にドッキングします
 // カテゴリー内の全員に共有されるよう、Firestoreをリアルタイムで購読する。
 // カテゴリー内の全員に共有されるよう、Firestoreをリアルタイムで購読する。
+// カテゴリー内の全員に共有されるよう、Firestoreをリアルタイムで購読する。
 opinionsRef.orderBy('createdAt', 'asc').onSnapshot(async (snap) => {
   
   // ① メンバー全員の最新マイカラーを「users」コレクションから一括取得して辞書を作る
@@ -457,8 +458,10 @@ opinionsRef.orderBy('createdAt', 'asc').onSnapshot(async (snap) => {
     const usersSnapshot = await db.collection('users').get();
     usersSnapshot.forEach(uDoc => {
       const uData = uDoc.data();
-      if (uData.email && uData.myColor) {
-        userColors[uData.email] = uData.myColor;
+      // 💡【修正】mypage.jsに合わせてフィールド名を「favoriteColor」に修正！
+      // さらに、ドキュメントのID自体が小文字のメールアドレスになっているため、uDoc.id を使います。
+      if (uData && uData.favoriteColor) {
+        userColors[uDoc.id] = uData.favoriteColor; // { "メールアドレス": "お気に入りの色" }
       }
     });
   } catch (e) {
@@ -469,14 +472,15 @@ opinionsRef.orderBy('createdAt', 'asc').onSnapshot(async (snap) => {
   notes = snap.docs.map(d => {
     const data = d.data();
     
-    // プロフィール（users）に登録されている最新のマイカラーを取得
-    const latestMyColor = data.authorEmail ? userColors[data.authorEmail] : null; 
+    // メールアドレスを小文字に揃えて、先ほどusersから持ってきた色を引っ張る
+    const authorKey = data.authorEmail ? data.authorEmail.trim().toLowerCase() : null;
+    const latestMyColor = authorKey ? userColors[authorKey] : null; 
 
     return {
       id: d.id,
       ...data,
-      // 💡【修正】最新のマイカラーがあれば最優先、無ければその付箋が持っている `#` 形式のカラーコード（data.color）をそのまま使う！
-      displayColor: latestMyColor || data.color || '#f3b6b7'
+      // 💡 プロフィール（users）の最新色があれば最優先、無ければ付箋が元々持つ色を使う
+      displayColor: latestMyColor || data.color || COLORS[0]
     };
   });
 
