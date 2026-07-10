@@ -447,16 +447,17 @@ if(composerSave) {
 // 付箋がそのまま全部表示される。
 // カテゴリー内の全員に共有されるよう、Firestoreをリアルタイムで購読する。
 // 💡 asyncを追加し、付箋データが届くたびに最新のユーザーコレクション（users）の色情報も一緒にドッキングします
+// カテゴリー内の全員に共有されるよう、Firestoreをリアルタイムで購読する。
 opinionsRef.orderBy('createdAt', 'asc').onSnapshot(async (snap) => {
   
-  // ① メンバー全員の最新マイカラーを「users」コレクションから一括取得して辞書（マップ）を作る
+  // ① メンバー全員の最新マイカラーを「users」コレクションから一括取得して辞書を作る
   const userColors = {};
   try {
     const usersSnapshot = await db.collection('users').get();
     usersSnapshot.forEach(uDoc => {
       const uData = uDoc.data();
       if (uData.email && uData.myColor) {
-        userColors[uData.email] = uData.myColor; // { "メールアドレス": "最新のマイカラーコード" }
+        userColors[uData.email] = uData.myColor;
       }
     });
   } catch (e) {
@@ -467,14 +468,18 @@ opinionsRef.orderBy('createdAt', 'asc').onSnapshot(async (snap) => {
   notes = snap.docs.map(d => {
     const data = d.data();
     
-    // 付箋に記録されている作成者（authorEmail）をもとに、先ほどusersから持ってきた最新の色を引っ張る
-    const latestMyColor = userColors[data.authorEmail] || null; 
+    // 付箋に記録されている作成者（authorEmail）をもとに最新の色を引っ張る
+    const latestMyColor = data.authorEmail ? userColors[data.authorEmail] : null; 
+
+    // 💡【ここを強化！】
+    // 最新のマイカラーがあればそれを使い、
+    // 無ければ、古い付箋用に「メールアドレスから自動計算したフォールバック色」をその場で計算して割り当てます。
+    const finalCalculatedColor = latestMyColor || data.color || fallbackColorFromEmail(data.authorEmail);
 
     return {
       id: d.id,
       ...data,
-      // 💡 もしプロフィールに最新のマイカラーがあれば最優先、なければ付箋データ内の古い固定色、それも無ければフォールバック（予備）の色にする
-      displayColor: latestMyColor || data.color || COLORS[0]
+      displayColor: finalCalculatedColor // 確実にカラーコード（#ffffff形式）が入るようにする
     };
   });
 
