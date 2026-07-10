@@ -524,18 +524,7 @@ document.querySelectorAll('.memo-btn:not(.memo-text-color-btn):not(.memo-highlig
 
     hideLinkInput();
     
-    let val = btn.value || null;
-    
-    // 🎨 太字と全く同じように動かす（すでにマーカーONなら透明にしてOFFにするトグル処理だけ挟む）
-    if (command === 'backColor') {
-      const curColor = document.queryCommandValue('backColor');
-      const isActive = curColor && curColor !== 'rgba(0, 0, 0, 0)' && curColor !== 'transparent' && curColor !== 'windowtext';
-      if (isActive) {
-        val = 'transparent'; // すでにONなら解除（透明）にする
-      }
-    }
-    
-    document.execCommand(command, false, val);
+    document.execCommand(command, false, btn.value || null);
     
     if(memoEl) memoEl.focus();
     updateToolbarState();
@@ -604,24 +593,9 @@ const toolbarButtons = document.querySelectorAll('.memo-btn[data-command]');
 function updateToolbarState(){
   toolbarButtons.forEach(btn => {
     const cmd = btn.dataset.command;
-    
-    // ⭐【修正】太字やリストの判定
     if(['bold','italic','underline','insertUnorderedList'].includes(cmd)){
       try{
         btn.classList.toggle('active', document.queryCommandState(cmd));
-      }catch(e){}
-    }
-    
-    // ⭐【修正】マーカーボタンの凹み判定を追加
-    // ⭐【修正】マーカーボタンの凹み判定を追加
-    // ⭐【修正】マーカーボタンの凹み判定を追加（太字と全く同じロジックにする）
-    if(cmd === 'backColor'){
-      try{
-        // 現在のカーソル位置（または選択範囲）の背景色をチェック
-        const curColor = document.queryCommandValue('backColor');
-        // 透明や標準色以外（＝マーカーが効いている状態）なら凹ませる
-        const isActive = curColor && curColor !== 'rgba(0, 0, 0, 0)' && curColor !== 'transparent' && curColor !== 'windowtext';
-        btn.classList.toggle('active', isActive);
       }catch(e){}
     }
   });
