@@ -50,7 +50,7 @@ function loadUserProfile(email){
 // mypage.js（Member欄）・todo/script.jsのフォールバックと全く同じパレットを使い、
 // 万が一お気に入りの色が未設定のままでも他の画面と色がズレないようにしてある。
 function fallbackColorFromEmail(email){
-  const palette = ['#f3b6b7', '#fef5c1', '#ebd0b3', '#c3bad3', '#cee3be', '#e4b8cf'];
+  const palette = ['#ffcfda','#fff5b7','#c8f7c5','#e9d5ff','#cffafe','#e5aad2'];
   let hash = 0;
   const s = String(email || 'guest');
   for(let i = 0; i < s.length; i++){ hash = s.charCodeAt(i) + ((hash << 5) - hash); }
