@@ -184,12 +184,10 @@ function buildNoteEl(n){
   // n.colorが「#rrggbb」形式（＝書いた人の固定色）ならインラインで直接塗る。
   // 古いデータ（coral/green/amber/lavのようなクラス名だけの付箋）は
   // 従来どおりCSSクラスに任せる。
-  if (n.color && n.color.charAt(0) === '#') {
-    el.style.background = n.color;
-    el.style.color = inkColorFor(n.color);
-  } else {
-    el.classList.add('c-' + (n.color || COLORS[0]));
-  }
+  // ⭐【修正】1箇所目でドッキングした「常に最新のマイカラー（displayColor）」を背景色に塗る
+  const finalColor = n.displayColor && n.displayColor.charAt(0) === '#' ? n.displayColor : fallbackColorFromEmail(n.authorEmail);
+  el.style.background = finalColor;
+  el.style.color = inkColorFor(finalColor);
 
   const deleteBtn = document.createElement('button');
   deleteBtn.className = 'note-delete';
@@ -447,8 +445,39 @@ if(composerSave) {
 // カテゴリー内の全員に共有されるよう、Firestoreをリアルタイムで購読する。
 // 後からカテゴリーに参加した人がこのページを開いても、これまでの
 // 付箋がそのまま全部表示される。
-opinionsRef.orderBy('createdAt', 'asc').onSnapshot(snap => {
-  notes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+// カテゴリー内の全員に共有されるよう、Firestoreをリアルタイムで購読する。
+// 💡 asyncを追加し、付箋データが届くたびに最新のユーザーコレクション（users）の色情報も一緒にドッキングします
+opinionsRef.orderBy('createdAt', 'asc').onSnapshot(async (snap) => {
+  
+  // ① メンバー全員の最新マイカラーを「users」コレクションから一括取得して辞書（マップ）を作る
+  const userColors = {};
+  try {
+    const usersSnapshot = await db.collection('users').get();
+    usersSnapshot.forEach(uDoc => {
+      const uData = uDoc.data();
+      if (uData.email && uData.myColor) {
+        userColors[uData.email] = uData.myColor; // { "メールアドレス": "最新のマイカラーコード" }
+      }
+    });
+  } catch (e) {
+    console.log("ユーザー情報の取得に失敗しました:", e);
+  }
+
+  // ② 届いた付箋データに、投稿者の「最新のマイカラー」をその場でマッピングする
+  notes = snap.docs.map(d => {
+    const data = d.data();
+    
+    // 付箋に記録されている作成者（authorEmail）をもとに、先ほどusersから持ってきた最新の色を引っ張る
+    const latestMyColor = userColors[data.authorEmail] || null; 
+
+    return {
+      id: d.id,
+      ...data,
+      // 💡 もしプロフィールに最新のマイカラーがあれば最優先、なければ付箋データ内の古い固定色、それも無ければフォールバック（予備）の色にする
+      displayColor: latestMyColor || data.color || COLORS[0]
+    };
+  });
+
   render();
 }, err => console.error('付箋の購読に失敗しました', err));
 
