@@ -513,7 +513,6 @@ if(linkUrlInput) {
   });
 }
 
-// ツールバーボタンのコマンド実行（存在チェック用の安全ガード付き）
 document.querySelectorAll('.memo-btn:not(.memo-text-color-btn):not(.memo-highlight-btn)').forEach(btn => {
   btn.addEventListener('click', (e) => {
     e.preventDefault();
@@ -524,11 +523,14 @@ document.querySelectorAll('.memo-btn:not(.memo-text-color-btn):not(.memo-highlig
     }
 
     hideLinkInput();
-    // ⭐【修正】ボタンに「value（色など）」が設定されていたら、それも一緒に実行するようにする
+    
+    // ボタンに「value（色）」が設定されていたら、それも一緒に実行する
     const val = btn.value || null;
     document.execCommand(command, false, val);
     
     if(memoEl) memoEl.focus();
+    
+    // ⭐【修正】マーカーが実行された瞬間に、即座にボタンが凹むように連動させる！
     updateToolbarState();
   });
 });
