@@ -165,7 +165,15 @@ function buildNoteEl(n){
 
   const text = document.createElement('div');
   text.className = 'note-text';
-  text.contentEditable = 'true';
+  
+  // ⭐【修正】自分が作った付箋、またはログインしていない古い付箋のみ編集可能にする
+  const currentUser = getCurrentAuthor();
+  if (!n.authorEmail || n.authorEmail === currentUser.email) {
+    text.contentEditable = 'true';
+  } else {
+    text.contentEditable = 'false'; // 他人の付箋は編集不可（読み取り専用）にする
+  }
+  
   text.spellcheck = true;
   text.setAttribute('data-placeholder', 'アイデアを入力');
   text.textContent = n.text;
