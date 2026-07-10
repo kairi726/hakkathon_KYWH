@@ -576,7 +576,7 @@ function subscribeTodayTasksForCategory(cat) {
         catName: cat.name, catColor: cat.color,
         lastAuthor: personName, lastText: preview,
       };
-      showChatBanner(cat.name, personName, preview);
+      showChatBanner(id, cat.name, personName, preview);
       renderChatNotifications();
     });
   }, err => console.error('チャット通知の購読エラー', err));
@@ -674,16 +674,17 @@ function renderHelpRequestsList() {
   `).join('');
 }
 
-function showChatBanner(catName, personName, preview) {
+function showChatBanner(catId, catName, personName, preview) {
   const banner = document.getElementById('global-chat-banner');
   if (!banner) return;
-  banner.innerHTML = `<div class="chat-fire-card">
+  // カード本体（✕ボタン以外）をクリックしたら、そのカテゴリーのChatタブへ直接飛ぶ
+  banner.innerHTML = `<div class="chat-fire-card" onclick="openCategoryChat('${catId}')">
     <span class="chat-fire-icon">💬</span>
     <div class="chat-fire-body">
       <strong>${escHtml(catName)}</strong>
       <span>${escHtml(personName)}さん：${escHtml(preview)}</span>
     </div>
-    <button class="chat-fire-dismiss" onclick="document.getElementById('global-chat-banner').classList.remove('active')">✕</button>
+    <button class="chat-fire-dismiss" onclick="event.stopPropagation(); document.getElementById('global-chat-banner').classList.remove('active')">✕</button>
   </div>`;
   banner.classList.add('active');
   setTimeout(() => banner.classList.remove('active'), 12000);

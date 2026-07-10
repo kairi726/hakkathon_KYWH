@@ -78,6 +78,11 @@ if (window.parent && window.parent !== window) {
       if (Array.isArray(e.data.members)) knownMembers = e.data.members;
       if (e.data.me && e.data.me.email) { myEmail = e.data.me.email; myName = e.data.me.name; }
       render(); // 自分／他人の色・名前が確定した可能性があるので再描画
+      // Firestoreの初回スナップショットは、このpostMessageで「自分が誰か」が
+      // 確定するより先に届くことがある。その場合markVisibleMessagesRead()は
+      // email不明のまま何もせず終わってしまうので、ここで確定した直後に
+      // もう一度試す（そうしないと既読が永遠に付かないことがある）。
+      markVisibleMessagesRead();
     }
     if (e.data && e.data.type === 'tb-panel-visibility') {
       isChatVisible = !!e.data.visible;

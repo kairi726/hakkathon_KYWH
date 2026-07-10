@@ -428,6 +428,7 @@ body {
   padding: 14px 18px; box-shadow: 0 4px 16px rgba(0,0,0,0.12);
   display: flex; align-items: flex-start; gap: 12px; max-width: 300px;
   animation: alarmSlideIn 0.3s ease;
+  cursor: pointer; /* クリックするとそのカテゴリーのChatタブへ飛べる */
 }
 .chat-fire-icon { font-size: 26px; }
 .chat-fire-body { flex: 1; }
