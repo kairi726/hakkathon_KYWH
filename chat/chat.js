@@ -103,7 +103,7 @@ function render() {
   // 親iframeが無い状況）で自分のメッセージなのに他人扱いになってしまう。
   const myResolvedEmail = getCurrentAuthor().email;
 
-  messages.forEach(m => {
+  messages.forEach((m, idx) => {
     const isMine = !!(myResolvedEmail && m.authorEmail === myResolvedEmail);
     const row = document.createElement('div');
     row.className = 'chat-row' + (isMine ? ' chat-row-mine' : '');
@@ -126,16 +126,33 @@ function render() {
       col.appendChild(nameEl);
     }
 
-    const bubble = document.createElement('div');
-    bubble.className = 'chat-bubble';
-    bubble.style.background = isMine ? colorForAuthor(myResolvedEmail) : '';
-    bubble.textContent = m.text || ''; // textContentでそのまま入れるのでHTMLとして解釈されない（XSS対策）
-    col.appendChild(bubble);
+    if (m.imageUrl) {
+      const img = document.createElement('img');
+      img.className = 'chat-image';
+      img.src = m.imageUrl;
+      img.alt = '送信された画像';
+      col.appendChild(img);
+    }
 
-    const timeEl = document.createElement('div');
-    timeEl.className = 'chat-time';
-    timeEl.textContent = formatTime(m.createdAt);
-    col.appendChild(timeEl);
+    if (m.text) {
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-bubble';
+      bubble.style.background = isMine ? colorForAuthor(myResolvedEmail) : '';
+      bubble.textContent = m.text; // textContentでそのまま入れるのでHTMLとして解釈されない（XSS対策）
+      col.appendChild(bubble);
+    }
+
+    // 同じ人が同じ時刻（分単位）に連続して送っている場合、時刻はそのかたまりの
+    // 一番新しいメッセージにだけ表示する（LINEのように、毎回は表示しない）
+    const currentTime = formatTime(m.createdAt);
+    const next = messages[idx + 1];
+    const groupedWithNext = next && next.authorEmail === m.authorEmail && formatTime(next.createdAt) === currentTime;
+    if (!groupedWithNext) {
+      const timeEl = document.createElement('div');
+      timeEl.className = 'chat-time';
+      timeEl.textContent = currentTime;
+      col.appendChild(timeEl);
+    }
 
     row.appendChild(col);
     wrap.appendChild(row);
@@ -164,18 +181,155 @@ function autoResizeInput() {
 }
 chatInput.addEventListener('input', autoResizeInput);
 
-function sendMessage() {
+// ------------------------------------------------------------
+// 画像の選択：選んだ直後には送らず、まずプレビュー表示だけする。
+// 実際に送るのは「送信」ボタン（またはEnter）を押したタイミング。
+//
+// ※ 当初はFirebase Storageにアップロードする実装にしていたが、この
+// プロジェクトではStorageがまだ有効化されておらず（無料のSparkプランのままだと
+// 有効化にBlazeプランへの変更＝クレジットカード登録が必要になる場合がある）、
+// 学生プロジェクトとしてそこまでは求めないことにした。代わりに、画像を
+// ブラウザ上でリサイズ・圧縮してBase64文字列に変換し、Firestoreの
+// メッセージドキュメントにそのまま保存する方式にしている（Storageが不要で
+// 今すぐ動く）。Firestoreの1ドキュメントの上限（約1MiB）に収まるよう、
+// 圧縮後のサイズもチェックする。
+// ------------------------------------------------------------
+const chatImageBtn = document.getElementById('chatImageBtn');
+const chatImageInput = document.getElementById('chatImageInput');
+const chatUploadStatus = document.getElementById('chatUploadStatus');
+const chatImagePreview = document.getElementById('chatImagePreview');
+const chatImagePreviewImg = document.getElementById('chatImagePreviewImg');
+const chatImagePreviewRemove = document.getElementById('chatImagePreviewRemove');
+const MAX_IMAGE_BYTES = 15 * 1024 * 1024; // 15MB（選択時点での元ファイルサイズの上限。送信時にリサイズ・圧縮するのでこれくらいまでは許容する）
+const MAX_FIRESTORE_IMAGE_CHARS = 900 * 1024; // 圧縮後のBase64文字列の上限（Firestoreの1ドキュメント約1MiB制限に収まるように余裕を持たせる）
+
+// 画像をcanvasで最大900pxにリサイズし、JPEGとして再圧縮してBase64（data URL）にする。
+// スマホ写真のような大きい画像でもFirestoreの上限に収まるようにするため。
+function fileToCompressedDataUrl(file, maxDim = 900, quality = 0.7) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error || new Error('ファイルの読み込みに失敗しました'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('画像の読み込みに失敗しました'));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) { height = Math.round(height * (maxDim / width)); width = maxDim; }
+          else { width = Math.round(width * (maxDim / height)); height = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+let pendingImageFile = null;
+let pendingImagePreviewUrl = null;
+let isSending = false;
+
+function setPendingImage(file) {
+  clearPendingImage();
+  pendingImageFile = file;
+  pendingImagePreviewUrl = URL.createObjectURL(file);
+  if (chatImagePreviewImg) chatImagePreviewImg.src = pendingImagePreviewUrl;
+  if (chatImagePreview) chatImagePreview.style.display = 'flex';
+}
+
+function clearPendingImage() {
+  if (pendingImagePreviewUrl) URL.revokeObjectURL(pendingImagePreviewUrl);
+  pendingImageFile = null;
+  pendingImagePreviewUrl = null;
+  if (chatImagePreview) chatImagePreview.style.display = 'none';
+  if (chatImagePreviewImg) chatImagePreviewImg.src = '';
+}
+
+if (chatImagePreviewRemove) {
+  chatImagePreviewRemove.addEventListener('click', () => clearPendingImage());
+}
+
+if (chatImageBtn && chatImageInput) {
+  chatImageBtn.addEventListener('click', () => chatImageInput.click());
+
+  chatImageInput.addEventListener('change', () => {
+    const file = chatImageInput.files && chatImageInput.files[0];
+    chatImageInput.value = ''; // 同じファイルを続けて選んでもchangeが発火するようにリセット
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showUploadStatus('画像ファイルを選んでください。', true);
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      showUploadStatus('画像が大きすぎます（15MBまで）。', true);
+      return;
+    }
+    setPendingImage(file);
+  });
+}
+
+function showUploadStatus(text, isError) {
+  if (!chatUploadStatus) return;
+  chatUploadStatus.textContent = text;
+  chatUploadStatus.classList.toggle('is-error', !!isError);
+  clearTimeout(showUploadStatus._t);
+  // エラーは原因を確認してもらうまで消さずに残す。成功時の「送信中…」表示だけ
+  // 自動で消す（成功時は最後にshowUploadStatus('', false)で明示的にクリアしている）。
+  if (text && !isError) {
+    showUploadStatus._t = setTimeout(() => { chatUploadStatus.textContent = ''; }, 4000);
+  }
+}
+
+// テキスト・画像（プレビュー中のもの）どちらか、または両方をまとめて送信する。
+// 失敗した場合は入力内容・プレビューを消さずに残し、もう一度「送信」を押せば
+// やり直せるようにする。
+async function sendMessage() {
   const text = chatInput.value.trim();
-  if (!text) return;
+  const imageFile = pendingImageFile;
+  if (!text && !imageFile) return;
+  if (isSending) return;
+  isSending = true;
+
   const author = getCurrentAuthor();
-  messagesRef.add({
-    text,
-    authorEmail: author.email,
-    authorName: author.name,
-    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-  }).catch(err => console.error('メッセージの送信に失敗しました', err));
-  chatInput.value = '';
-  autoResizeInput();
+  try {
+    let imageDataUrl = null;
+    if (imageFile) {
+      showUploadStatus('画像を処理中…', false);
+      imageDataUrl = await fileToCompressedDataUrl(imageFile);
+      if (imageDataUrl.length > MAX_FIRESTORE_IMAGE_CHARS) {
+        throw new Error('画像を圧縮しても大きすぎました。もう少しシンプルな画像を試してください。');
+      }
+    }
+
+    const payload = {
+      authorEmail: author.email,
+      authorName: author.name,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    };
+    if (text) payload.text = text;
+    if (imageDataUrl) payload.imageUrl = imageDataUrl;
+    await messagesRef.add(payload);
+
+    // 送信できたときだけ、入力欄とプレビューをクリアする
+    chatInput.value = '';
+    autoResizeInput();
+    clearPendingImage();
+    if (imageFile) showUploadStatus('', false);
+  } catch (err) {
+    console.error('メッセージの送信に失敗しました', err);
+    // 原因が分かるよう、エラーコード／メッセージをそのまま画面に出す
+    const detail = err && (err.code || err.message) ? `（${err.code || ''}${err.code && err.message ? ' : ' : ''}${err.message || ''}）` : '';
+    showUploadStatus(`送信に失敗しました${detail}`, true);
+  } finally {
+    isSending = false;
+  }
 }
 
 chatForm.addEventListener('submit', (e) => {
