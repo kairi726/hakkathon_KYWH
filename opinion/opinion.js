@@ -125,7 +125,9 @@ function hasActiveReaction(n){
 function toggleReaction(n, key){
   if (!n.reactions) n.reactions = {};
   const current = Number(n.reactions[key] || 0);
-  n.reactions[key] = current > 0 ? 0 : 1;
+  
+  // ⭐【修正】0か1の切り替えではなく、押すたびに数字が1ずつ増えるようにする
+  n.reactions[key] = current + 1;
   return n.reactions[key];
 }
 
