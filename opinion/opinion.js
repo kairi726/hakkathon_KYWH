@@ -185,9 +185,9 @@ function buildNoteEl(n){
   // 古いデータ（coral/green/amber/lavのようなクラス名だけの付箋）は
   // 従来どおりCSSクラスに任せる。
   // ⭐【修正】1箇所目でドッキングした「常に最新のマイカラー（displayColor）」を背景色に塗る
-  const finalColor = n.displayColor && n.displayColor.charAt(0) === '#' ? n.displayColor : fallbackColorFromEmail(n.authorEmail);
-  el.style.background = finalColor;
-  el.style.color = inkColorFor(finalColor);
+  // ⭐【修正】1箇所目で合流させた「最新のマイカラー、または付箋自体の#カラーコード」で100%綺麗に背景を塗る
+  el.style.background = n.displayColor;
+  el.style.color = inkColorFor(n.displayColor);
 
   const deleteBtn = document.createElement('button');
   deleteBtn.className = 'note-delete';
@@ -448,6 +448,7 @@ if(composerSave) {
 // カテゴリー内の全員に共有されるよう、Firestoreをリアルタイムで購読する。
 // 💡 asyncを追加し、付箋データが届くたびに最新のユーザーコレクション（users）の色情報も一緒にドッキングします
 // カテゴリー内の全員に共有されるよう、Firestoreをリアルタイムで購読する。
+// カテゴリー内の全員に共有されるよう、Firestoreをリアルタイムで購読する。
 opinionsRef.orderBy('createdAt', 'asc').onSnapshot(async (snap) => {
   
   // ① メンバー全員の最新マイカラーを「users」コレクションから一括取得して辞書を作る
@@ -464,22 +465,18 @@ opinionsRef.orderBy('createdAt', 'asc').onSnapshot(async (snap) => {
     console.log("ユーザー情報の取得に失敗しました:", e);
   }
 
-  // ② 届いた付箋データに、投稿者の「最新のマイカラー」をその場でマッピングする
+  // ② 届いた付箋データに、最新のマイカラーを合流させる
   notes = snap.docs.map(d => {
     const data = d.data();
     
-    // 付箋に記録されている作成者（authorEmail）をもとに最新の色を引っ張る
+    // プロフィール（users）に登録されている最新のマイカラーを取得
     const latestMyColor = data.authorEmail ? userColors[data.authorEmail] : null; 
-
-    // 💡【ここを強化！】
-    // 最新のマイカラーがあればそれを使い、
-    // 無ければ、古い付箋用に「メールアドレスから自動計算したフォールバック色」をその場で計算して割り当てます。
-    const finalCalculatedColor = latestMyColor || data.color || fallbackColorFromEmail(data.authorEmail);
 
     return {
       id: d.id,
       ...data,
-      displayColor: finalCalculatedColor // 確実にカラーコード（#ffffff形式）が入るようにする
+      // 💡【修正】最新のマイカラーがあれば最優先、無ければその付箋が持っている `#` 形式のカラーコード（data.color）をそのまま使う！
+      displayColor: latestMyColor || data.color || '#f3b6b7'
     };
   });
 
