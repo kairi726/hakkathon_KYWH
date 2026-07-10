@@ -513,6 +513,9 @@ if(linkUrlInput) {
   });
 }
 
+// マーカーモード（文字選択なしでボタンを押した状態）を管理する変数
+let isPreMarkerMode = false;
+
 document.querySelectorAll('.memo-btn:not(.memo-text-color-btn):not(.memo-highlight-btn)').forEach(btn => {
   btn.addEventListener('click', (e) => {
     e.preventDefault();
@@ -524,27 +527,42 @@ document.querySelectorAll('.memo-btn:not(.memo-text-color-btn):not(.memo-highlig
 
     hideLinkInput();
     
-    // ボタンに「value（色）」が設定されていたら、それも一緒に実行する
-    // ⭐【修正】マーカーボタン（backColor）の時は、すでにマーカーがあれば消去（透明に）する
-    let val = btn.value || null;
+    // ⭐【修正】マーカーボタン（backColor）が押された時のWord風処理
     if (command === 'backColor') {
-      const curColor = document.queryCommandValue('backColor');
-      const isActive = curColor && curColor !== 'rgba(0, 0, 0, 0)' && curColor !== 'transparent' && curColor !== 'windowtext';
+      const selection = window.getSelection();
       
-      if (isActive) {
-        val = 'transparent'; // すでにマーカーがある場合は、透明にして消す
+      // ① 文字を範囲選択している場合 ➜ その部分だけにマーカーを引く（または消す）
+      if (selection && !selection.isCollapsed && memoEl.contains(selection.anchorNode)) {
+        const curColor = document.queryCommandValue('backColor');
+        const isActive = curColor && curColor !== 'rgba(0, 0, 0, 0)' && curColor !== 'transparent' && curColor !== 'windowtext';
+        const val = isActive ? 'transparent' : (btn.value || 'yellow');
+        document.execCommand('backColor', false, val);
+      } 
+      // ② 文字を選択していない場合（カーソルがあるだけ・文字を書く前）➜ モードを切り替える
+      else {
+        isPreMarkerMode = !isPreMarkerMode;
+        
+        if (isPreMarkerMode) {
+          // マーカーON：これ以降に書く文字をマーカー色にする
+          document.execCommand('backColor', false, btn.value || 'yellow');
+          btn.classList.add('active');
+        } else {
+          // マーカーOFF：透明（通常テキスト）に戻して、凹みを消す
+          document.execCommand('backColor', false, 'transparent');
+          btn.classList.remove('active');
+        }
+        if(memoEl) memoEl.focus();
+        return; // 文字を打つ前のモード切替なので、ここで処理を終了
       }
+    } else {
+      // 通常のボタン（太字など）の処理
+      document.execCommand(command, false, btn.value || null);
     }
     
-    document.execCommand(command, false, val);
-    
     if(memoEl) memoEl.focus();
-    
-    // ⭐【修正】マーカーが実行された瞬間に、即座にボタンが凹むように連動させる！
     updateToolbarState();
   });
 });
-
 // 💡 存在しないカラーパレット処理でエラーが出ないよう安全ガード付きに変更
 const textColorBtn = document.querySelector('.memo-text-color-btn');
 if(textColorBtn) {
