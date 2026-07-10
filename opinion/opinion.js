@@ -1,4 +1,4 @@
-const COLORS = ['#f3b6b7','#fef5c1','#ebd0b3','#c3bad3','#cee3be','#e4b8cf']; // 古い付箋（authorが無いデータ）向けのフォールバック用クラス名
+const COLORS = ['#ffcfda','#fff5b7','#c8f7c5','#e9d5ff','#cffafe','#e5aad2']; // 古い付箋（authorが無いデータ）向けのフォールバック用クラス名
 let notes = [];
 let memoTimer = null;
 
