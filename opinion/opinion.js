@@ -125,9 +125,26 @@ function hasActiveReaction(n){
 function toggleReaction(n, key){
   if (!n.reactions) n.reactions = {};
   const current = Number(n.reactions[key] || 0);
+
+  // このブラウザでこれまでに押したリアクションの記録を読み込む
+  const myReactions = JSON.parse(localStorage.getItem('my_reactions') || '{}');
   
-  // ⭐【修正】0か1の切り替えではなく、押すたびに数字が1ずつ増えるようにする
-  n.reactions[key] = current + 1;
+  // 「付箋のID_絵文字」をセットにして、自分が過去に押したか判定するキーを作る
+  const reactionKey = `${n.id}_${key}`;
+
+  if (myReactions[reactionKey]) {
+    // 💡 すでに押している場合は、1減らす（キャンセル）
+    n.reactions[key] = Math.max(0, current - 1);
+    delete myReactions[reactionKey]; // 記録から消す
+  } else {
+    // 💡 まだ押していない場合は、1増やす
+    n.reactions[key] = current + 1;
+    myReactions[reactionKey] = true; // 押した記録を残す
+  }
+
+  // 更新した記録をブラウザに保存
+  localStorage.setItem('my_reactions', JSON.stringify(myReactions));
+  
   return n.reactions[key];
 }
 
