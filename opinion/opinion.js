@@ -1,4 +1,4 @@
-const COLORS = ['coral','green','amber','lav']; // 古い付箋（authorが無いデータ）向けのフォールバック用クラス名
+const COLORS = ['#f3b6b7','#fef5c1','#ebd0b3','#c3bad3','#cee3be','#e4b8cf']; // 古い付箋（authorが無いデータ）向けのフォールバック用クラス名
 let notes = [];
 let memoTimer = null;
 
@@ -232,43 +232,75 @@ function buildNoteEl(n){
   box.appendChild(input);
   box.appendChild(send);
 
+// ーーー 220行目付近のここから差し替え ーーー
   const list = document.createElement('ul');
   list.className = 'comment-list';
   n.comments.forEach((c, idx) => {
     const li = document.createElement('li');
     const span = document.createElement('span');
-    span.textContent = c;
+    
+    // 過去の古いデータ（ただの文字）か、新しいデータ（オブジェクト形式）かを判定してテキストを取得
+    const commentText = (typeof c === 'object' && c !== null) ? c.text : c;
+    
+    // 画面にはコメントの本文だけを表示（ユーザー名は表示しない）
+    span.textContent = commentText;
     li.appendChild(span);
-    const deleteBtn = document.createElement('button');
-    deleteBtn.textContent = '×';
-    deleteBtn.style.marginLeft = '8px';
-    deleteBtn.style.cursor = 'pointer';
-    deleteBtn.style.border = 'none';
-    deleteBtn.style.background = 'none';
-    deleteBtn.style.color = 'inherit';
-    deleteBtn.style.fontSize = '16px';
-    deleteBtn.style.padding = '0';
-    deleteBtn.onclick = () => {
-      n.comments.splice(idx, 1);
-      render();
-      opinionsRef.doc(n.id).update({ comments: n.comments }).catch(err => console.error('コメントの削除に失敗しました', err));
-    };
-    li.appendChild(deleteBtn);
+
+    // 削除ボタンの表示判定（自分がこのブラウザで投稿したコメント、または古いデータのみ×を出す）
+    const commentId = (typeof c === 'object' && c !== null) ? c.id : null;
+    const mySavedComments = JSON.parse(localStorage.getItem('my_posted_comments') || '[]');
+    const isMyComment = commentId && mySavedComments.includes(commentId);
+
+    if (isMyComment || typeof c !== 'object') {
+      const deleteBtn = document.createElement('button');
+      deleteBtn.textContent = '×';
+      deleteBtn.style.marginLeft = '8px';
+      deleteBtn.style.cursor = 'pointer';
+      deleteBtn.style.border = 'none';
+      deleteBtn.style.background = 'none';
+      deleteBtn.style.color = 'inherit';
+      deleteBtn.style.fontSize = '16px';
+      deleteBtn.style.padding = '0';
+      deleteBtn.onclick = () => {
+        n.comments.splice(idx, 1);
+        render();
+        opinionsRef.doc(n.id).update({ comments: n.comments }).catch(err => console.error('コメントの削除に失敗しました', err));
+      };
+      li.appendChild(deleteBtn);
+    }
     list.appendChild(li);
   });
+  // ーーー ここまで差し替え ーーー
 
   toggle.onclick = () => {
     box.classList.toggle('open');
     noteUiState[n.id] = Object.assign({}, noteUiState[n.id], { open: box.classList.contains('open') });
   };
+
   // 入力中の文字を覚えておく（再描画をまたいでも消えないように）
   input.addEventListener('input', () => {
     noteUiState[n.id] = Object.assign({}, noteUiState[n.id], { open: true, draft: input.value });
   });
+
+// ーーー 287行目（スクリーンショットの場所） ーーー
   send.onclick = () => {
     const v = input.value.trim();
     if(!v) return;
-    n.comments.push(v);
+
+    // コメントごとにランダムな固有IDを作る
+    const newCommentId = 'c_' + Math.random().toString(36).substring(2, 15);
+
+    // 自分が送ったコメントIDを、自分のブラウザのlocalStorageに保存
+    const mySavedComments = JSON.parse(localStorage.getItem('my_posted_comments') || '[]');
+    mySavedComments.push(newCommentId);
+    localStorage.setItem('my_posted_comments', JSON.stringify(mySavedComments));
+
+    // FirestoreにはIDとテキストだけを保存
+    n.comments.push({
+      id: newCommentId,
+      text: v
+    });
+    
     input.value = '';
     noteUiState[n.id] = Object.assign({}, noteUiState[n.id], { draft: '' });
     render();
