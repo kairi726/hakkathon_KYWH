@@ -8,7 +8,7 @@ const params = new URLSearchParams(location.search);
 const CATEGORY_ID = params.get('category') || 'default';
 
 const USER_KEY = 'tb_current_user';
-const COLOR_PALETTE = ['#ffcfda', '#fff5b7', '#c8f7c5', '#e9d5ff', '#cffafe', '#9cd0d8'];
+const COLOR_PALETTE = ['#ffcfda','#fff5b7','#c8f7c5','#e9d5ff','#cffafe','#e5aad2'];
 
 // ------------------------------------------------------------
 // Firebase（mypage.js・todo/script.jsと同じプロジェクト・同じ設定）
