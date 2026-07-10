@@ -525,7 +525,17 @@ document.querySelectorAll('.memo-btn:not(.memo-text-color-btn):not(.memo-highlig
     hideLinkInput();
     
     // ボタンに「value（色）」が設定されていたら、それも一緒に実行する
-    const val = btn.value || null;
+    // ⭐【修正】マーカーボタン（backColor）の時は、すでにマーカーがあれば消去（透明に）する
+    let val = btn.value || null;
+    if (command === 'backColor') {
+      const curColor = document.queryCommandValue('backColor');
+      const isActive = curColor && curColor !== 'rgba(0, 0, 0, 0)' && curColor !== 'transparent' && curColor !== 'windowtext';
+      
+      if (isActive) {
+        val = 'transparent'; // すでにマーカーがある場合は、透明にして消す
+      }
+    }
+    
     document.execCommand(command, false, val);
     
     if(memoEl) memoEl.focus();
