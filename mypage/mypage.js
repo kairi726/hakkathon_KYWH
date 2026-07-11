@@ -469,6 +469,8 @@ accountSaveBtn.addEventListener('click', () => {
 
   // 今カテゴリー詳細画面を開いていれば、Member欄の名前・色もすぐに更新する
   if (selectedCategoryId) renderMembers(lastCategoryMemberEmails);
+  // 助けてーリストなど、カテゴリー横断で名前を出している箇所もついでに更新する
+  renderHelpRequestsList();
 
   accountSaveMsg.style.color = '#0f766e';
   accountSaveMsg.textContent = '保存しました。';
@@ -550,6 +552,12 @@ function subscribeTodayTasksForCategory(cat) {
   const id = cat.id;
   if (todayTaskUnsubs[id]) return; // 既に購読済み
 
+  // このカテゴリーのメンバーの名前・色を先に温めておく。チャット通知は
+  // 届いたその場でresolveDisplayNameを使って表示名を確定するので、購読開始時点で
+  // キャッシュしておかないと最初の通知だけ古い名前（メッセージ保存時点の
+  // スナップショット）にフォールバックしてしまう。
+  resolveMemberInfo(cat.memberEmails || []);
+
   const todosRef = db.collection('categories').doc(id).collection('todos');
   const deadlinesRef = db.collection('categories').doc(id).collection('deadlines');
 
@@ -600,11 +608,13 @@ function subscribeTodayTasksForCategory(cat) {
       if (selectedCategoryId === id && currentActiveTab === 'ai' && !currentOpenDmId) return;
 
       const preview = data.text || (data.imageUrl ? '📷 写真を送信しました' : '');
-      const personName = data.authorName || data.authorEmail || '誰か';
+      // 送信者名はメッセージ保存時のスナップショット（authorName）ではなく、
+      // Memberの「今の名前」を優先する（resolveDisplayNameはTodo/Chat/助けてーと同じ考え方）
+      const personName = resolveDisplayName(data.authorEmail, data.authorName);
       chatUnreadByCategory[id] = {
         count: (chatUnreadByCategory[id]?.count || 0) + 1,
         catName: cat.name, catColor: cat.color,
-        lastAuthor: personName, lastText: preview,
+        lastAuthor: personName, lastAuthorEmail: data.authorEmail, lastText: preview,
       };
       showChatBanner(id, cat.name, personName, preview);
       renderChatNotifications();
@@ -633,19 +643,41 @@ function unsubscribeTodayTasksForCategory(id) {
   renderChatNotifications();
 }
 
+// メールアドレスから「今の名前」を解決する。todo/chatの担当者・投稿者名と同じ考え方で、
+// 保存済みのスナップショット文字列（fallback）よりも、分かる場合はこちらを優先する。
+// ・自分自身なら常に最新（currentUser.nameはアカウント設定を保存した瞬間に更新される）
+// ・他のメンバーは、この端末のローカルプロフィール→Firestoreから取得済みのキャッシュ
+//   （resolveMemberInfoで温めておく）の順に探す
+function resolveDisplayName(email, fallback) {
+  if (!email) return fallback || '誰か';
+  if (currentUser && email === currentUser.email && currentUser.name) return currentUser.name;
+  const local = loadUserProfile(email);
+  if (local && local.name) return local.name;
+  const cloud = memberProfileCache[email];
+  if (cloud && cloud.name) return cloud.name;
+  return fallback || email;
+}
+
 // 自分以外の担当タスクで助けを求めているものを拾い、
 // ①一覧画面に表示し続ける、②新しく出てきたものだけポップアップで知らせる
-function updateHelpRequestsForCategory(catId, cat, allTodos) {
+//
+// このカテゴリーのメンバーの名前・色をまずキャッシュに温めてから（未取得の人だけ
+// Firestoreに問い合わせる）、一覧・ポップアップどちらも「今の名前」で出す。
+// 先にポップアップだけ出してしまうと、プロフィール取得が終わる前で古い
+// スナップショット名のまま表示されてしまうため、両方ともawait後にまとめて行う。
+async function updateHelpRequestsForCategory(catId, cat, allTodos) {
   const active = allTodos.filter(t => t.needsHelp && t.assigneeEmail !== currentUser.email);
   helpRequestsByCategory[catId] = active.map(t => ({
     id: t.id, task: t.task, assignee: t.assignee, assigneeEmail: t.assigneeEmail,
   }));
 
+  await resolveMemberInfo(cat.memberEmails || []);
+
   active.forEach(t => {
     const key = catId + ':' + t.id;
     if (!notifiedHelpIds.has(key)) {
       notifiedHelpIds.add(key);
-      showHelpBanner(cat.name, t.assignee || t.assigneeEmail || '誰か', t.task);
+      showHelpBanner(cat.name, resolveDisplayName(t.assigneeEmail, t.assignee), t.task);
     }
   });
 
@@ -683,7 +715,7 @@ function renderHelpRequestsList() {
     (helpRequestsByCategory[cat.id] || []).forEach(r => {
       items.push({
         catId: cat.id, catName: cat.name, catColor: cat.color,
-        task: r.task, person: r.assignee || r.assigneeEmail || '誰か',
+        task: r.task, person: resolveDisplayName(r.assigneeEmail, r.assignee),
       });
     });
   });
@@ -740,7 +772,7 @@ function renderChatNotifications() {
     <div class="today-task-item" onclick="openCategoryChat('${it.catId}')">
       <span class="today-task-cat" style="background:${it.catColor || CATEGORY_COLORS[0]}">${escHtml(it.catName)}</span>
       <span class="today-task-badge today-task-badge-chat">💬 ${it.count}件</span>
-      <span class="today-task-title">${escHtml(it.lastAuthor)}さん：${escHtml(it.lastText)}</span>
+      <span class="today-task-title">${escHtml(resolveDisplayName(it.lastAuthorEmail, it.lastAuthor))}さん：${escHtml(it.lastText)}</span>
     </div>
   `).join('');
 }
@@ -877,6 +909,8 @@ function subscribeDmMessages(thread) {
   if (dmMessageUnsubs[id]) return;
 
   const otherEmail = (thread.memberEmails || []).find(e => e !== currentUser.email) || (thread.memberEmails || [])[0];
+  // グループチャットと同じく、相手の名前・色を先に温めておく
+  resolveMemberInfo(thread.memberEmails || []);
   const messagesRef = db.collection('dms').doc(id).collection('messages');
 
   const unsub = messagesRef.onSnapshot(snap => {
@@ -900,7 +934,7 @@ function subscribeDmMessages(thread) {
       if (currentOpenDmId === id) return; // 今まさにこのDMを開いて見ているなら通知しない
 
       const preview = data.text || (data.imageUrl ? '📷 写真を送信しました' : '');
-      const personName = data.authorName || data.authorEmail || '誰か';
+      const personName = resolveDisplayName(data.authorEmail, data.authorName);
       dmUnreadByThread[id] = {
         count: (dmUnreadByThread[id]?.count || 0) + 1,
         otherEmail, otherName: personName, lastText: preview,
