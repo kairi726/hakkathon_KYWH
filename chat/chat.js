@@ -1,9 +1,13 @@
-// このページはmypage.jsからiframeで埋め込まれ、
-// ?category=カテゴリーID というクエリパラメータが付けて渡されてくる。
-// LINEのようなグループチャットとして、カテゴリーのメンバー全員にリアルタイムで
-// 共有されるよう、Firestore（categories/カテゴリーID/messages）に保存する。
+// このページはmypage.jsからiframeで埋め込まれる。2通りの使われ方がある：
+//   ?category=カテゴリーID → カテゴリー内の全員参加グループチャット
+//   ?dm=DM_ID              → メンバー同士の1対1の個人チャット
+// メッセージの表示・既読・画像の圧縮/拡大表示のロジックはどちらも共通で、
+// 保存先のFirestoreコレクションだけが違う
+// （categories/カテゴリーID/messages ⇔ dms/DM_ID/messages）。
 const params = new URLSearchParams(location.search);
-const CATEGORY_ID = params.get('category') || 'default';
+const CATEGORY_ID = params.get('category') || null;
+const DM_ID = params.get('dm') || null;
+const IS_DM = !CATEGORY_ID && !!DM_ID;
 
 // ------------------------------------------------------------
 // Firebase（mypage.jsと同じプロジェクト・同じ設定）
@@ -21,8 +25,15 @@ if (!firebase.apps || !firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
 const db = firebase.firestore();
-const categoryDocRef = db.collection('categories').doc(CATEGORY_ID);
-const messagesRef = categoryDocRef.collection('messages');
+const messagesRef = IS_DM
+  ? db.collection('dms').doc(DM_ID).collection('messages')
+  : db.collection('categories').doc(CATEGORY_ID || 'default').collection('messages');
+
+// 個人チャットのときは、見出しの説明文をそれっぽく変えておく
+if (IS_DM) {
+  const subEl = document.querySelector('.chat-sub');
+  if (subEl) subEl.textContent = '1対1でリアルタイムにやり取りできます';
+}
 
 // ------------------------------------------------------------
 // 「自分が誰か」「メンバー一覧の色」をmypage.jsから受け取る。

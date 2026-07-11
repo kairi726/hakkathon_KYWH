@@ -234,9 +234,13 @@
         </div>
 
         <!-- Chat -->
+        <!-- グループチャットと、メンバーとの個人チャット（DM）をこのタブの中で
+             切り替えられるようにしてある（同じiframeのsrcを?category=/?dm=で
+             切り替えるだけで、Firestoreへの保存先が変わる） -->
         <div class="tab-panel" data-panel="ai">
           <h2 class="page-title">Chat</h2>
-          <iframe class="embedded-page" style="display:none;" src="../chat/chat.html"></iframe>
+          <div id="chat-target-selector" class="chat-target-selector"></div>
+          <iframe class="embedded-page" id="chat-iframe" style="display:none;" src="../chat/chat.html"></iframe>
         </div>
 
       </div>

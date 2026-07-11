@@ -132,6 +132,25 @@ let chatUnreadByCategory = {}; // { [categoryId]: {count, catName, catColor, las
 let chatSeenMessageIds = {}; // { [categoryId]: Set<messageId> }（通知済み・既存のメッセージID）
 let chatSubsInitialized = {}; // { [categoryId]: boolean }（初回スナップショットかどうか＝既存メッセージで誤通知しないため）
 
+// ------------------------------------------------------------
+// 個人チャット（DM）：カテゴリーに属さない、メンバー同士の1対1チャット。
+// dmId は2人のメールアドレスをソートしてつなげたもの（誰から始めても同じIDになる）。
+// dms/{dmId} という親ドキュメントに memberEmails を持たせておき、カテゴリーと
+// 同じ「array-contains」の仕組みで「自分が参加しているDM一覧」を検索できるようにする。
+// 通知・既読・画像などのロジックはカテゴリーのチャットとほぼ同じ考え方を流用している。
+// ------------------------------------------------------------
+function dmIdFor(emailA, emailB) {
+  return [normEmail(emailA), normEmail(emailB)].sort().join('__');
+}
+let dmThreads = []; // 自分が参加しているDMスレッドの一覧（dms/{id}のdata）
+let unsubDmThreads = null;
+let dmMessageUnsubs = {}; // { [dmId]: () => void }
+let dmSeenMessageIds = {}; // { [dmId]: Set<messageId> }
+let dmSubsInitialized = {}; // { [dmId]: boolean }
+let dmUnreadByThread = {}; // { [dmId]: {count, otherEmail, otherName, lastText} }
+let currentOpenDmId = null; // 今まさに開いているDMのID（開いている間はそのDMの通知を出さない）
+let dmMemberInfo = []; // 今開いているDMの2人分の {email,name,color}（iframeへpostMessageするため）
+
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // メールアドレスの表記ゆれ（大文字・小文字、前後の空白）で招待が届かない事故を防ぐため、
@@ -349,6 +368,10 @@ document.getElementById('logout-btn').addEventListener('click', () => {
   if (unsubGoalDoc) unsubGoalDoc();
   unsubscribeAllTodayTasks();
   categories = [];
+  if (unsubDmThreads) unsubDmThreads();
+  Object.keys(dmMessageUnsubs).forEach(id => unsubscribeDmMessages(id));
+  dmThreads = [];
+  currentOpenDmId = null;
   currentUser = null;
   pendingSignupEmail = null;
   localStorage.removeItem(USER_KEY);
@@ -467,6 +490,7 @@ async function startApp() {
     history.replaceState({}, '', location.pathname); // ?join= を消す
   }
   subscribeCategories();
+  subscribeDmThreads();
 }
 
 // 初期表示：ログイン済み（過去にログインしてlocalStorageに残っている）ならそのままアプリを開始。
@@ -570,10 +594,10 @@ function subscribeTodayTasksForCategory(cat) {
 
       const data = change.doc.data();
       if (data.authorEmail && currentUser && data.authorEmail === currentUser.email) return; // 自分の投稿では通知しない
-      // 今まさにこのカテゴリーのChatタブを開いて見ているなら、重ねて通知は出さない。
-      // （他のカテゴリーを見ているときや、同じカテゴリーでも別のタブを見ているときは
-      // 今まで通り通知する）
-      if (selectedCategoryId === id && currentActiveTab === 'ai') return;
+      // 今まさにこのカテゴリーのChatタブを、しかもグループチャットの方を開いて
+      // 見ているなら、重ねて通知は出さない。同じChatタブでも個人チャット（DM）を
+      // 見ている場合はグループの新着は見えていないので、通知は出す。
+      if (selectedCategoryId === id && currentActiveTab === 'ai' && !currentOpenDmId) return;
 
       const preview = data.text || (data.imageUrl ? '📷 写真を送信しました' : '');
       const personName = data.authorName || data.authorEmail || '誰か';
@@ -727,6 +751,202 @@ window.openCategoryChat = function (catId) {
   showTabPanel('ai');
 };
 
+// ============================================================
+// 個人チャット（DM）
+// ------------------------------------------------------------
+// カテゴリー一覧の画面ではなく、Chatタブの中に「グループ／個人チャット」の
+// 切り替えチップを置き、同じiframeのsrcを ?category=... ⇔ ?dm=... で
+// 切り替える。メッセージの表示・既読・画像拡大などのロジックはグループ
+// チャットと同じchat.jsをそのまま使う（保存先のFirestoreだけ変わる）。
+// ============================================================
+
+// 今表示中カテゴリーのメンバー（自分以外）を対象に、「グループ」チップ＋
+// 各メンバーとの個人チャットチップを描画する。Member欄が更新されるたびに
+// 呼び出す（renderMembersから呼ぶ）。
+async function renderChatTargetSelector() {
+  const box = document.getElementById('chat-target-selector');
+  if (!box || !currentUser) return;
+
+  const emails = (lastCategoryMemberEmails || []).filter(e => normEmail(e) !== normEmail(currentUser.email));
+  const infos = emails.length ? await resolveMemberInfo(emails) : [];
+  const groupActive = !currentOpenDmId;
+
+  const chipsHtml = infos.map(({ email, name, color }) => {
+    const dmId = dmIdFor(currentUser.email, email);
+    const isActive = currentOpenDmId === dmId;
+    const unread = dmUnreadByThread[dmId];
+    const badge = unread && unread.count > 0 ? `<span class="dm-person-unread">${unread.count}</span>` : '';
+    return `<button type="button" class="chat-target-chip${isActive ? ' active' : ''}" onclick="selectChatTarget('${email}')">
+      ${escHtml(name || email)}${badge}
+    </button>`;
+  }).join('');
+
+  box.innerHTML = `<button type="button" class="chat-target-chip${groupActive ? ' active' : ''}" onclick="selectChatTarget('group')">👥 グループ</button>${chipsHtml}`;
+}
+
+// Chatタブ内で「グループ」または特定メンバーを選んだときに呼ばれる。
+// 同じiframe（#chat-iframe）のsrcを付け替えるだけで、タブ自体は切り替えない。
+window.selectChatTarget = async function (target) {
+  if (!currentUser || !selectedCategoryId) return;
+  const iframe = document.getElementById('chat-iframe');
+  if (!iframe) return;
+
+  if (target === 'group') {
+    currentOpenDmId = null;
+    const src = '../chat/chat.html?category=' + encodeURIComponent(selectedCategoryId);
+    if (iframe.dataset.loadedSrc !== src) {
+      iframe.src = src;
+      iframe.dataset.loadedSrc = src;
+    }
+    iframe.style.display = 'block';
+    if (iframe.contentWindow) {
+      try {
+        iframe.contentWindow.postMessage({ type: 'tb-members-update', members: lastMemberInfo, me: currentUserForIframes() }, '*');
+        iframe.contentWindow.postMessage({ type: 'tb-panel-visibility', visible: true }, '*');
+      } catch (e) { /* ignore */ }
+    }
+    renderChatTargetSelector();
+    return;
+  }
+
+  // それ以外＝メールアドレス（個人チャットの相手）
+  const otherEmail = target;
+  const dmId = dmIdFor(currentUser.email, otherEmail);
+
+  try {
+    await db.collection('dms').doc(dmId).set({
+      memberEmails: [normEmail(currentUser.email), normEmail(otherEmail)],
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  } catch (err) {
+    console.error('個人チャットの作成に失敗しました', err);
+  }
+
+  const infos = await resolveMemberInfo([currentUser.email, normEmail(otherEmail)]);
+  dmMemberInfo = infos;
+
+  if (dmUnreadByThread[dmId]) delete dmUnreadByThread[dmId]; // 開いた＝読んだ扱い
+  currentOpenDmId = dmId;
+
+  const src = '../chat/chat.html?dm=' + encodeURIComponent(dmId);
+  if (iframe.dataset.loadedSrc !== src) {
+    iframe.src = src;
+    iframe.dataset.loadedSrc = src;
+  }
+  iframe.style.display = 'block';
+
+  // 既に読み込み済み（同じ相手を選び直した）場合でも、最新のメンバー情報と
+  // 「今表示中です」を明示的に送っておく
+  if (iframe.contentWindow) {
+    try {
+      iframe.contentWindow.postMessage({ type: 'tb-members-update', members: dmMemberInfo, me: currentUserForIframes() }, '*');
+      iframe.contentWindow.postMessage({ type: 'tb-panel-visibility', visible: true }, '*');
+    } catch (e) { /* ignore */ }
+  }
+
+  renderChatTargetSelector();
+};
+
+// 通知バナー・一覧から個人チャットを開くための入り口。
+// DMはカテゴリーに紐づかないが、Chatタブ自体はカテゴリー画面の中にあるので、
+// 「この人と共有しているカテゴリー」を1つ探して開き、Chatタブでその人を選択する。
+window.openDmFromNotification = function (otherEmail) {
+  const normalizedOther = normEmail(otherEmail);
+  const cat = categories.find(c => (c.memberEmails || []).some(e => normEmail(e) === normalizedOther));
+  if (!cat) return; // 共有しているカテゴリーが見つからない場合は何もしない
+  selectCategory(cat.id);
+  showTabPanel('ai');
+  // iframeの読み込みが終わるのを待ってから相手を選択する
+  setTimeout(() => selectChatTarget(otherEmail), 300);
+};
+
+// ===== 自分が参加しているDMスレッド一覧の購読（カテゴリーと同じarray-contains方式） =====
+function subscribeDmThreads() {
+  if (unsubDmThreads) unsubDmThreads();
+  unsubDmThreads = db.collection('dms')
+    .where('memberEmails', 'array-contains', currentUser.email)
+    .onSnapshot(snap => {
+      dmThreads = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      syncDmMessageSubscriptions();
+    }, err => console.error('個人チャット一覧の購読エラー', err));
+}
+
+// ===== DMスレッドごとのメッセージ購読（新着通知用。docChanges方式はカテゴリーチャットと同じ） =====
+function subscribeDmMessages(thread) {
+  const id = thread.id;
+  if (dmMessageUnsubs[id]) return;
+
+  const otherEmail = (thread.memberEmails || []).find(e => e !== currentUser.email) || (thread.memberEmails || [])[0];
+  const messagesRef = db.collection('dms').doc(id).collection('messages');
+
+  const unsub = messagesRef.onSnapshot(snap => {
+    const wasInitialized = dmSubsInitialized[id];
+    dmSubsInitialized[id] = true;
+
+    if (!wasInitialized) {
+      // 既にある過去メッセージは「見た」ものとして記録するだけ（通知しない）
+      dmSeenMessageIds[id] = new Set(snap.docs.map(d => d.id));
+      return;
+    }
+
+    const seen = dmSeenMessageIds[id] || (dmSeenMessageIds[id] = new Set());
+    snap.docChanges().forEach(change => {
+      if (change.type !== 'added') return;
+      if (seen.has(change.doc.id)) return;
+      seen.add(change.doc.id);
+
+      const data = change.doc.data();
+      if (data.authorEmail && currentUser && data.authorEmail === currentUser.email) return; // 自分の投稿では通知しない
+      if (currentOpenDmId === id) return; // 今まさにこのDMを開いて見ているなら通知しない
+
+      const preview = data.text || (data.imageUrl ? '📷 写真を送信しました' : '');
+      const personName = data.authorName || data.authorEmail || '誰か';
+      dmUnreadByThread[id] = {
+        count: (dmUnreadByThread[id]?.count || 0) + 1,
+        otherEmail, otherName: personName, lastText: preview,
+      };
+      showDmBanner(otherEmail, personName, preview);
+      renderChatTargetSelector();
+    });
+  }, err => console.error('個人チャット通知の購読エラー', err));
+
+  dmMessageUnsubs[id] = unsub;
+}
+
+function unsubscribeDmMessages(id) {
+  if (dmMessageUnsubs[id]) {
+    dmMessageUnsubs[id]();
+    delete dmMessageUnsubs[id];
+  }
+  delete dmSeenMessageIds[id];
+  delete dmSubsInitialized[id];
+  delete dmUnreadByThread[id];
+}
+
+function syncDmMessageSubscriptions() {
+  const currentIds = new Set(dmThreads.map(t => t.id));
+  dmThreads.forEach(t => subscribeDmMessages(t));
+  Object.keys(dmMessageUnsubs).forEach(id => {
+    if (!currentIds.has(id)) unsubscribeDmMessages(id);
+  });
+}
+
+// 個人チャットの新着ポップアップ（カテゴリーチャットと同じバナー要素を再利用する）
+function showDmBanner(otherEmail, personName, preview) {
+  const banner = document.getElementById('global-chat-banner');
+  if (!banner) return;
+  banner.innerHTML = `<div class="chat-fire-card" onclick="openDmFromNotification('${otherEmail}')">
+    <span class="chat-fire-icon">💬</span>
+    <div class="chat-fire-body">
+      <strong>${escHtml(personName)}さん（個人チャット）</strong>
+      <span>${escHtml(preview)}</span>
+    </div>
+    <button class="chat-fire-dismiss" onclick="event.stopPropagation(); document.getElementById('global-chat-banner').classList.remove('active')">✕</button>
+  </div>`;
+  banner.classList.add('active');
+  setTimeout(() => banner.classList.remove('active'), 12000);
+}
+
 function syncTodayTaskSubscriptions() {
   const currentIds = new Set(categories.map(c => c.id));
   categories.forEach(cat => subscribeTodayTasksForCategory(cat));
@@ -842,6 +1062,7 @@ function renderCategoryChips() {
 function showCategoryListScreen() {
   selectedCategoryId = null;
   currentActiveTab = null;
+  currentOpenDmId = null; // 一覧に戻った＝もうDMを見ているわけではない
   document.getElementById('category-content').style.display = 'none';
   document.getElementById('category-list-screen').style.display = 'block';
   document.getElementById('category-form-box').style.display = 'none';
@@ -851,6 +1072,7 @@ function showCategoryListScreen() {
 
 window.selectCategory = function (id) {
   selectedCategoryId = id;
+  currentOpenDmId = null; // カテゴリー画面に来た＝もうDMを見ているわけではない
   if (currentUser) markCategoriesSeen(currentUser.email, [id]); // 開いたら「NEW」を消す
   document.getElementById('category-list-screen').style.display = 'none';
   document.getElementById('category-content').style.display = 'block';
@@ -947,8 +1169,12 @@ function currentUserForIframes() {
 
 // Todo/Goalなど埋め込みiframe側にも同じ色・名前を渡す
 // （担当者の色をMemberリストと固定でそろえるため）
+// ※ #chat-iframeは個人チャット（DM）表示中のときだけ自分専用のメンバー情報
+//   （2人分）を持っているので、その間はカテゴリーのメンバー一覧で
+//   上書きしてしまわないよう対象から除外する。
 function broadcastMembersToIframes(memberInfo) {
   document.querySelectorAll('iframe.embedded-page').forEach(iframe => {
+    if (iframe.id === 'chat-iframe' && currentOpenDmId) return;
     if (!iframe.contentWindow) return;
     try {
       iframe.contentWindow.postMessage({ type: 'tb-members-update', members: memberInfo, me: currentUserForIframes() }, '*');
@@ -962,6 +1188,7 @@ async function renderMembers(emails) {
   const memberInfo = await resolveMemberInfo(emails);
   lastMemberInfo = memberInfo;
   broadcastMembersToIframes(memberInfo);
+  renderChatTargetSelector(); // Chatタブの「グループ／個人チャット」チップも一緒に更新する
 
   if (!box) return;
   // Member欄はメールアドレスではなく、設定してもらった名前を表示する
@@ -1146,6 +1373,13 @@ const panels = document.querySelectorAll('.tab-panel');
 function showTabPanel(tabName) {
   if (!tabs.length || !panels.length) return;
 
+  // 他のタブから新しくChatタブに来たときは、個人チャット（DM）を見ていた状態を
+  // 引きずらないよう、グループチャット表示にリセットする
+  // （src自体は下の共通ロジックでグループチャットのURLに戻る）
+  if (tabName === 'ai' && currentActiveTab !== 'ai') {
+    currentOpenDmId = null;
+    renderChatTargetSelector();
+  }
   currentActiveTab = tabName;
 
   // Chatタブを実際に開いたら、そのカテゴリーの新着通知は「読んだ」ものとして消す
@@ -1207,7 +1441,11 @@ window.addEventListener('message', (e) => {
   // 確実にメンバーの色を受け取れる。
   if (e.data && e.data.type === 'tb-request-members') {
     if (e.source && typeof e.source.postMessage === 'function') {
-      e.source.postMessage({ type: 'tb-members-update', members: lastMemberInfo, me: currentUserForIframes() }, '*');
+      // Chatタブで今まさに個人チャット（DM）を表示中なら、カテゴリーのメンバー
+      // 一覧ではなく今開いているDMの2人分の情報を返す（そうしないとカテゴリーの
+      // メンバー色が混ざって表示されてしまう）
+      const members = currentOpenDmId ? dmMemberInfo : lastMemberInfo;
+      e.source.postMessage({ type: 'tb-members-update', members, me: currentUserForIframes() }, '*');
     }
   }
 });
