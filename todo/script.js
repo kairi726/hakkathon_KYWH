@@ -65,6 +65,17 @@ function findMemberByEmail(email) {
   return knownMembers.find(m => m.email === email) || null;
 }
 
+// 表示用の担当者名。assigneeEmailからMemberリストを引いて「今の名前」を返す。
+// 名前を変更した直後も、保存済みのtodo.assignee（古い名前の可能性がある文字列）
+// ではなくこちらを使うことで、名前変更がすぐに一覧へ反映されるようにする。
+function displayNameForAssignee(todo) {
+  if (todo.assigneeEmail) {
+    const member = findMemberByEmail(todo.assigneeEmail);
+    if (member) return member.name;
+  }
+  return (todo.assignee || '未定').trim() || '未定';
+}
+
 // 担当者の色。メールアドレスでMemberリストと一致すればその固定色を使う。
 // 古いデータ（assigneeEmailが無い）や、メンバーが見つからない場合は
 // 「未定」は固定のグレー、それ以外は名前から作った固定色にフォールバックする。
@@ -204,7 +215,7 @@ function renderTodos() {
       </div>
       <div class="col-task">・${todo.task}</div>
       <div class="col-assignee">
-        <span class="assignee-dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:${colorForAssignee(todo)};"></span>${todo.assignee || '未定'}
+        <span class="assignee-dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:${colorForAssignee(todo)};"></span>${displayNameForAssignee(todo)}
       </div>
       <div class="col-status">
         <select class="status-select" style="width:96px;" onchange="updateStatus('${todo.id}', this.value)">
