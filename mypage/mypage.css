@@ -442,3 +442,24 @@ body {
 
 .chat-notifications-box { border: 2px solid #cee3be; }
 .today-task-badge-chat { background: #e5f2da; color: #4a6b34; }
+
+/* Chatタブ内の「グループ／個人チャット」切り替えチップ */
+.chat-target-selector {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  margin: 4px 0 14px;
+}
+.chat-target-chip {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 18px;
+  background: #faf9f6; border: 2px solid transparent;
+  cursor: pointer; transition: background 0.15s;
+  font-size: 13px; font-weight: bold; color: #444;
+  font-family: inherit;
+}
+.chat-target-chip:hover { background: #f1efe9; }
+.chat-target-chip.active { border-color: #cee3be; background: #eef7e6; color: #2b3a1f; }
+.chat-target-chip .dm-person-unread {
+  background: #ff5b5b; color: #fff; font-size: 10px; font-weight: bold;
+  border-radius: 10px; padding: 1px 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+}
