@@ -77,6 +77,25 @@ const chartCanvas = document.getElementById('taskChart');
 const ctx = chartCanvas ? chartCanvas.getContext('2d') : null;
 
 // ------------------------------------------------------------
+// 「未着手のまま何日放置されているか」の自動判定（todo/script.jsと共通の考え方）
+// ------------------------------------------------------------
+// createdAtはFirestoreのserverTimestamp()で保存されているためTimestampオブジェクトで
+// 届く。追加直後でまだサーバー確定前だとnullのことがあるので、その場合は
+// 「今作ったばかり」= 0日として扱う。
+const NEGLECT_THRESHOLD_DAYS = 0; // これ以上「未着手」のままならランキングに数える
+
+function toMillis(ts) {
+  if (!ts) return Date.now();
+  if (typeof ts.toMillis === 'function') return ts.toMillis();
+  if (typeof ts.seconds === 'number') return ts.seconds * 1000;
+  return Date.now();
+}
+
+function escHtmlLocal(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ------------------------------------------------------------
 // Memberリスト（mypage.js）との色の連携
 // ------------------------------------------------------------
 // 以前は担当者の「名前」が一致するかどうかと、表示順のインデックスだけで
@@ -91,6 +110,10 @@ let knownMembers = []; // [{ email, name, color }, ...]
 // だけに頼らずこちらを優先する）
 let myEmail = null;
 let myName = null;
+
+function findMemberByEmail(email) {
+  return knownMembers.find(m => m.email === email) || null;
+}
 
 if (window.parent && window.parent !== window) {
   window.addEventListener('message', (e) => {
@@ -251,6 +274,67 @@ function renderLegend(total) {
   });
 }
 
+// ===== 放置ランキング =====
+// 「未着手のままNEGLECT_THRESHOLD_DAYS日以上経過しているタスク」の件数を
+// 担当者ごとに数える。担当者はメールアドレスでMemberリストと突き合わせ、
+// 表示名・色をMemberリスト・円グラフと完全に一致させる。
+function buildNeglectRanking() {
+  const counts = new Map(); // key: email(不明時はテキストのまま), value: {name, color, count}
+
+  loadTodos().forEach(todo => {
+    if (todo.status !== 'not-started') return;
+    const days = Math.floor((Date.now() - toMillis(todo.createdAt)) / (1000 * 60 * 60 * 24));
+    if (days < NEGLECT_THRESHOLD_DAYS) return;
+
+    const member = todo.assigneeEmail ? findMemberByEmail(todo.assigneeEmail) : null;
+    const key = todo.assigneeEmail || (todo.assignee || '未定');
+    const name = (member && member.name) || todo.assignee || '未定';
+
+    if (!counts.has(key)) counts.set(key, { name, count: 0 });
+    counts.get(key).count += 1;
+  });
+
+  return Array.from(counts.values())
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'ja'));
+}
+
+// 既存の .legend-card / .legend-list / .legend-item / .legend-dot / .legend-text を
+// そのまま再利用して作る。新しいCSSを増やさずに元のデザインへ自然に馴染ませるため。
+function renderNeglectRanking(ranking) {
+  let container = document.getElementById('neglectRanking');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'neglectRanking';
+    container.className = 'legend-card';
+    container.style.marginTop = '18px';
+    const chartMeta = taskLegend ? taskLegend.closest('.chart-meta') : null;
+    const anchor = chartMeta || (taskLegend && taskLegend.parentElement) || document.body;
+    anchor.appendChild(container);
+  }
+
+  if (ranking.length === 0) {
+    container.style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+
+  container.style.display = '';
+  const rows = ranking.map(r => `
+    <li class="legend-item">
+      <span class="legend-dot" style="background:${r.count >= 2 ? '#e5766f' : '#e8c25a'}"></span>
+      <div class="legend-text">
+        <span>${escHtmlLocal(r.name)}</span>
+        <span>放置 ${r.count} 件（${NEGLECT_THRESHOLD_DAYS}日以上未着手）</span>
+      </div>
+    </li>
+  `).join('');
+
+  container.innerHTML = `
+    <h3>⚠️ 放置ランキング</h3>
+    <ul class="legend-list">${rows}</ul>
+  `;
+}
+
 function drawChart(total) {
   if (!chartCanvas || !ctx) return;
 
@@ -295,12 +379,20 @@ function drawChart(total) {
   ctx.fillText('件', centerX, centerY + 20);
 }
 
+// 放置ランキングは日をまたいだ瞬間にも自動で更新されるよう、1分ごとに再計算する
+setInterval(() => {
+  if (latestTodos.some(t => t.status === 'not-started')) {
+    renderNeglectRanking(buildNeglectRanking());
+  }
+}, 60 * 1000);
+
 function init() {
   members = buildMembers();
   const total = members.reduce((sum, member) => sum + member.count, 0);
   if (memberList) renderMembers();
   if (taskLegend) renderLegend(total);
   drawChart(total);
+  renderNeglectRanking(buildNeglectRanking());
 }
 
 // Todoの内容をリアルタイムで購読する（他のメンバーが別の端末で追加・変更しても
