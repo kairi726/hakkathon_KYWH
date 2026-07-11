@@ -28,42 +28,12 @@ const db = firebase.firestore();
 const todosRef = db.collection('categories').doc(CATEGORY_ID).collection('todos');
 
 // ------------------------------------------------------------
-// 「未着手のまま何日放置されているか」の自動判定
+// 「未着手のまま何日放置されているか」はGoal画面の放置ランキングで裏側で
+// 集計するために createdAt をこのファイルの下の方でずっと記録・更新している。
+// 以前はここに「未着手・◯日経過」というバッジをTodo一覧にも表示していたが、
+// 画面上には出さないことにしたため、表示用のコードだけを取り除いた。
+// createdAtの記録・更新ロジック自体は変更していない。
 // ------------------------------------------------------------
-// createdAtはFirestoreのserverTimestamp()で保存しているため、Timestampオブジェクト
-// （.toMillis()や.seconds を持つ）として飛んでくる。追加直後のローカルキャッシュでは
-// サーバー側の確定前でnullのことがあるので、その場合は「今作ったばかり」= 0日として扱う。
-const NEGLECT_WARNING_DAYS = 3; // これ以上で黄色(注意)
-const NEGLECT_DANGER_DAYS = 7;  // これ以上で赤(危険)
-
-function toMillis(ts) {
-  if (!ts) return Date.now();
-  if (typeof ts.toMillis === 'function') return ts.toMillis();
-  if (typeof ts.seconds === 'number') return ts.seconds * 1000;
-  return Date.now();
-}
-
-function getNeglectInfo(todo) {
-  const createdAtMs = toMillis(todo.createdAt);
-  const days = Math.floor((Date.now() - createdAtMs) / (1000 * 60 * 60 * 24));
-  let level = 'normal';
-  if (days >= NEGLECT_DANGER_DAYS) level = 'danger';
-  else if (days >= NEGLECT_WARNING_DAYS) level = 'warning';
-  return { days, level };
-}
-
-const NEGLECT_STYLES = {
-  normal: { bg: '#eef0ec', color: '#5c5850' },
-  warning: { bg: '#fff2c2', color: '#8a6d1a' },
-  danger: { bg: '#ffd6d6', color: '#a3282f' },
-};
-
-function neglectBadgeHtml(todo) {
-  if (todo.status !== 'not-started') return '';
-  const { days, level } = getNeglectInfo(todo);
-  const style = NEGLECT_STYLES[level];
-  return `<span class="neglect-badge" style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;font-size:12px;background:${style.bg};color:${style.color};">未着手・${days}日経過</span>`;
-}
 
 // ------------------------------------------------------------
 // 「助けてー」機能：自分の担当タスクが終わらないときに、同じカテゴリーの
@@ -207,12 +177,6 @@ const statusMap = {
 // 上の方に残ったままになったりしていた。
 const statusRank = { 'not-started': 0, 'ongoing': 1, 'completed': 2 };
 
-// 経過日数バッジは1分ごとに再描画して、日をまたいだ瞬間にも自動で数字が
-// 更新されるようにする（ページを開きっぱなしにしていても気づけるように）
-setInterval(() => {
-  if (todos.some(t => t.status === 'not-started')) renderTodos();
-}, 60 * 1000);
-
 // タスク一覧を描画する関数
 function renderTodos() {
   listContainer.innerHTML = ''; // 一度クリア
@@ -242,7 +206,6 @@ function renderTodos() {
           <option value="completed" ${todo.status === 'completed' ? 'selected' : ''}>完了</option>
         </select>
         <span class="status-badge ${statusInfo.class}">${statusInfo.text}</span>
-        ${neglectBadgeHtml(todo)}
       </div>
       <div class="col-action">
         <button class="delete-btn" onclick="deleteTodo('${todo.id}')">削除</button>

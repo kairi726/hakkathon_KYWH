@@ -82,7 +82,7 @@ const ctx = chartCanvas ? chartCanvas.getContext('2d') : null;
 // createdAtはFirestoreのserverTimestamp()で保存されているためTimestampオブジェクトで
 // 届く。追加直後でまだサーバー確定前だとnullのことがあるので、その場合は
 // 「今作ったばかり」= 0日として扱う。
-const NEGLECT_THRESHOLD_DAYS = 0; // これ以上「未着手」のままならランキングに数える
+const NEGLECT_THRESHOLD_DAYS = 0; // これ以上「未着手」のままならランキングに数える（0日=作成直後から即カウント。動作確認用）
 
 function toMillis(ts) {
   if (!ts) return Date.now();
@@ -275,14 +275,14 @@ function renderLegend(total) {
 }
 
 // ===== 放置ランキング =====
-// 「未着手のままNEGLECT_THRESHOLD_DAYS日以上経過しているタスク」の件数を
-// 担当者ごとに数える。担当者はメールアドレスでMemberリストと突き合わせ、
-// 表示名・色をMemberリスト・円グラフと完全に一致させる。
+// 「未着手 or 進行中のまま」NEGLECT_THRESHOLD_DAYS日以上経過しているタスクの件数を
+// 担当者ごとに数える（「完了」だけを対象外にする）。担当者はメールアドレスで
+// Memberリストと突き合わせ、表示名・色をMemberリスト・円グラフと完全に一致させる。
 function buildNeglectRanking() {
-  const counts = new Map(); // key: email(不明時はテキストのまま), value: {name, color, count}
+  const counts = new Map(); // key: email(不明時はテキストのまま), value: {name, count}
 
   loadTodos().forEach(todo => {
-    if (todo.status !== 'not-started') return;
+    if (todo.status === 'completed') return;
     const days = Math.floor((Date.now() - toMillis(todo.createdAt)) / (1000 * 60 * 60 * 24));
     if (days < NEGLECT_THRESHOLD_DAYS) return;
 
@@ -324,7 +324,7 @@ function renderNeglectRanking(ranking) {
       <span class="legend-dot" style="background:${r.count >= 2 ? '#e5766f' : '#e8c25a'}"></span>
       <div class="legend-text">
         <span>${escHtmlLocal(r.name)}</span>
-        <span>放置 ${r.count} 件（${NEGLECT_THRESHOLD_DAYS}日以上未着手）</span>
+        <span>放置 ${r.count} 件</span>
       </div>
     </li>
   `).join('');
@@ -381,7 +381,7 @@ function drawChart(total) {
 
 // 放置ランキングは日をまたいだ瞬間にも自動で更新されるよう、1分ごとに再計算する
 setInterval(() => {
-  if (latestTodos.some(t => t.status === 'not-started')) {
+  if (latestTodos.some(t => t.status !== 'completed')) {
     renderNeglectRanking(buildNeglectRanking());
   }
 }, 60 * 1000);
