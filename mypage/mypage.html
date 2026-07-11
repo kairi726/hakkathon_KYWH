@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Page</title>
+<link rel="stylesheet" href="mypage.css">
+</head>
+<body>
+
+<!-- ===== ログイン画面 ===== -->
+<div id="login-screen" class="login-screen">
+  <main class="auth-card">
+    <div class="auth-header">
+      <p class="eyebrow">Welcome</p>
+      <h1 id="form-title">新規登録</h1>
+      <p id="form-description">アカウントを作成して、サービスを始めましょう。</p>
+    </div>
+
+    <div class="toggle" role="tablist" aria-label="認証切り替え">
+      <button class="toggle-btn active" type="button" data-mode="login">ログイン</button>
+      <button class="toggle-btn" type="button" data-mode="signup">新規登録</button>
+    </div>
+
+    <form id="auth-form" class="auth-form">
+      <div class="field-group" id="name-group">
+        <label for="name">お名前</label>
+        <input id="name" name="name" type="text" placeholder="山田 太郎" required>
+      </div>
+
+      <div class="field-group">
+        <label for="email">メールアドレス</label>
+        <input id="email" name="email" type="email" placeholder="example@email.com" required>
+      </div>
+
+      <div class="field-group">
+        <label for="password">パスワード</label>
+        <input id="password" name="password" type="password" placeholder="8文字以上" required>
+      </div>
+
+      <div class="field-group" id="confirm-group">
+        <label for="confirm-password">パスワード確認</label>
+        <input id="confirm-password" name="confirm-password" type="password" placeholder="もう一度入力してください">
+      </div>
+
+      <div class="field-group color-group hidden" id="color-group">
+        <label for="favorite-color">自分の色を選ぶ</label>
+        <div class="color-picker-row">
+          <input id="favorite-color" name="favorite-color" type="color" value="#c8f7c5" aria-label="好きな色">
+          <span class="color-preview" id="color-preview" aria-hidden="true"></span>
+          <span class="color-help" id="color-help">登録後にお好みの色を選べます。</span>
+        </div>
+        <div class="color-palette" role="list" aria-label="おすすめカラー">
+          <button type="button" class="color-swatch" data-color="#ffcfda" style="background:#ffcfda" aria-label="パステルピンク"></button>
+          <button type="button" class="color-swatch" data-color="#fff5b7" style="background:#fff5b7" aria-label="パステルイエロー"></button>
+          <button type="button" class="color-swatch" data-color="#c8f7c5" style="background:#c8f7c5" aria-label="パステルグリーン"></button>
+          <button type="button" class="color-swatch" data-color="#e9d5ff" style="background:#e9d5ff" aria-label="パステルパープル"></button>
+          <button type="button" class="color-swatch" data-color="#cffafe" style="background:#cffafe" aria-label="パステルシアン"></button>
+          <button type="button" class="color-swatch" data-color="#ffd6f0" style="background:#e5aad2" aria-label="パステルピンク2"></button>
+        </div>
+        <div style="margin-top:10px">
+          <button type="button" id="confirm-color-btn" class="confirm-color-btn">色を決定</button>
+        </div>
+      </div>
+
+      <button class="submit-btn" type="submit" id="submit-btn">新規登録する</button>
+      <p class="form-message" id="form-message" aria-live="polite"></p>
+    </form>
+  </main>
+</div>
+
+<!-- どのタブを見ていてもアラームに気づけるよう、ページ全体で共通のバナー -->
+<div id="global-alarm-banner" class="alarm-fire-banner"></div>
+
+<!-- どのタブを見ていても「助けてー」に気づけるよう、ページ全体で共通のバナー -->
+<div id="global-help-banner" class="help-fire-banner"></div>
+
+<!-- どのカテゴリー・どのタブを見ていてもチャットの新着に気づけるよう、ページ全体で共通のバナー -->
+<div id="global-chat-banner" class="chat-fire-banner"></div>
+
+<!-- ===== メインアプリ ===== -->
+<div id="app-screen" class="app-screen" style="display:none;">
+
+  <!-- ユーザーバー -->
+  <div class="user-bar">
+    <div class="account-area">
+      <button type="button" id="user-name-btn" class="user-name-btn"></button>
+
+      <!-- 名前を押すと出てくるアカウント情報パネル -->
+      <div id="account-panel" class="account-panel" style="display:none;">
+        <div class="account-panel-row">
+          <label for="account-name-input">名前</label>
+          <input id="account-name-input" type="text" placeholder="表示する名前">
+        </div>
+        <div class="account-panel-row">
+          <label>メールアドレス</label>
+          <span id="account-email-display" class="account-email-display"></span>
+        </div>
+        <div class="account-panel-row">
+          <label>自分の色<span class="account-color-hint">（同じカテゴリー内で色がかぶったときはここで変更）</span></label>
+          <div id="account-color-palette" class="account-color-palette"></div>
+          <div class="account-color-custom-row">
+            <input id="account-color-input" type="color" value="#c8f7c5">
+            <span id="account-color-preview" class="account-color-preview"></span>
+          </div>
+        </div>
+        <button type="button" id="account-save-btn" class="add-btn add-btn-goal">保存する</button>
+        <p id="account-save-msg" class="account-save-msg"></p>
+      </div>
+    </div>
+    <button id="logout-btn" class="text-btn">ログアウト</button>
+  </div>
+
+  <!-- ===== カテゴリー一覧画面（最初の画面） ===== -->
+  <div id="category-list-screen">
+    <h2 class="page-title">カテゴリー</h2>
+
+    <!-- 招待されたときのお知らせ（実際のメール送信の代わりに、マイページ上で分かるようにする） -->
+    <div id="invite-notice" class="invite-notice" style="display:none;">
+      <span id="invite-notice-text"></span>
+      <button id="invite-notice-dismiss" class="text-btn">確認しました</button>
+    </div>
+
+    <div id="category-list-chips" class="category-list-chips"></div>
+
+    <!-- カテゴリーが1つも無いとき -->
+    <div id="no-category-msg" class="empty-state" style="display:none;">
+      <p class="empty-state-icon">🗂️</p>
+      <p class="empty-state-title">まだカテゴリーがありません</p>
+      <p class="empty-state-sub">カテゴリーを作ると、Goal・To do・Opinion・Calendarなどのタブが自動で使えるようになります</p>
+    </div>
+
+    <!-- カテゴリー追加フォーム（トグル表示） -->
+    <div id="category-form-box" class="category-form-box" style="display:none;">
+      <input id="new-category-name" type="text" placeholder="カテゴリー名（例：文化祭実行委員）">
+      <div id="color-picker" class="color-picker"></div>
+      <button id="create-category-btn" class="add-btn add-btn-goal">作成</button>
+      <button id="cancel-category-btn" class="text-btn">キャンセル</button>
+      <p id="category-form-error" class="category-form-error"></p>
+    </div>
+
+    <div class="add-category-center">
+      <button id="add-category-btn" class="add-btn-big">＋ カテゴリーを追加する</button>
+    </div>
+
+    <!-- 全カテゴリー横断で、今まさに助けを求めているタスクをまとめて表示 -->
+    <div id="help-requests-box" class="today-tasks-box help-requests-box" style="display:none;">
+      <h3 class="side-card-title">🆘 助けを求めています</h3>
+      <div id="help-requests-list" class="today-tasks-list"></div>
+    </div>
+
+    <!-- 全カテゴリー横断で、チャットの新着メッセージをまとめて表示 -->
+    <div id="chat-notifications-box" class="today-tasks-box chat-notifications-box" style="display:none;">
+      <h3 class="side-card-title">💬 新着チャット</h3>
+      <div id="chat-notifications-list" class="today-tasks-list"></div>
+    </div>
+
+    <!-- 全カテゴリー横断で、自分が担当のTodoと今日・明日締切のCalendar項目をまとめて表示 -->
+    <div id="today-tasks-box" class="today-tasks-box" style="display:none;">
+      <h3 class="side-card-title">今日やるタスク</h3>
+      <div id="today-tasks-list" class="today-tasks-list"></div>
+    </div>
+  </div>
+
+  <!-- ===== 選択中カテゴリーのコンテンツ（詳細画面） ===== -->
+  <div id="category-content" style="display:none;">
+
+    <button id="back-to-list-btn" class="text-btn back-to-list-btn">← カテゴリー一覧 / カテゴリーを追加</button>
+
+    <!-- タブバー（perfect/perfect.htmlと同じ構成：Goal / To do / Opinion / Calendar / AI Asistant） -->
+    <nav class="tab-container">
+      <a href="#" class="tab-item tab-goal active" data-tab="goal">Goal</a>
+      <a href="#" class="tab-item tab-todo" data-tab="todo">To do</a>
+      <a href="#" class="tab-item tab-opinion" data-tab="opinion">Opinion</a>
+      <a href="#" class="tab-item tab-calendar" data-tab="calendar">Calendar</a>
+      <a href="#" class="tab-item tab-ai" data-tab="ai">Chat</a>
+    </nav>
+
+    <div class="cal-layout">
+
+      <!-- 左：メンバー・招待・共有 -->
+      <div class="side-panel">
+        <h3 class="side-card-title">Member</h3>
+        <div id="member-list" class="member-list"></div>
+
+        <div class="invite-box">
+          <label class="form-label">招待するメールアドレス
+            <input id="invite-email" type="email" placeholder="invite@example.com">
+          </label>
+          <button id="invite-btn" class="add-btn add-btn-goal">招待する</button>
+          <p id="invite-msg" class="invite-msg"></p>
+        </div>
+
+        <div class="share-box">
+          <button id="share-link-btn" class="add-btn add-btn-todo">🔗 共有リンクをコピー</button>
+          <div id="share-link-result" class="share-link-result" style="display:none;">
+            <input id="share-link-text" class="share-link-input" type="text" readonly>
+          </div>
+          <p id="share-link-copied-msg" class="share-link-copied-msg"></p>
+          <p class="share-hint">このリンクを開くと、招待なしでもこのカテゴリーに参加できます。</p>
+        </div>
+
+        <div class="danger-box">
+          <button id="delete-category-btn" class="add-btn add-btn-danger">🗑 このカテゴリーを削除</button>
+          <p class="danger-hint">間違えて作成したときのための削除ボタンです。一度削除すると元に戻せません。</p>
+        </div>
+      </div>
+
+      <!-- 右：タブごとのコンテンツ -->
+      <div class="content-area">
+
+        <!-- Goal -->
+        <div class="tab-panel active" data-panel="goal">
+          <h2 class="page-title">Goal</h2>
+          <iframe class="embedded-page" style="display:none;" src="../goal/goal.html"></iframe>
+        </div>
+
+        <!-- To do -->
+        <div class="tab-panel" data-panel="todo">
+          <h2 class="page-title">To do</h2>
+          <iframe class="embedded-page" style="display:none;" src="../todo/index.html"></iframe>
+        </div>
+
+        <!-- Opinion -->
+        <div class="tab-panel" data-panel="opinion">
+          <h2 class="page-title">Opinion</h2>
+          <iframe class="embedded-page" style="display:none;" src="../opinion/opinion.html"></iframe>
+        </div>
+
+        <!-- Calendar -->
+        <div class="tab-panel" data-panel="calendar">
+          <h2 class="page-title">Calendar</h2>
+          <iframe class="embedded-page" style="display:none;" src="../calendar/calender.html"></iframe>
+        </div>
+
+        <!-- Chat -->
+        <!-- グループチャットと、メンバーとの個人チャット（DM）をこのタブの中で
+             切り替えられるようにしてある（同じiframeのsrcを?category=/?dm=で
+             切り替えるだけで、Firestoreへの保存先が変わる） -->
+        <div class="tab-panel" data-panel="ai">
+          <h2 class="page-title">Chat</h2>
+          <div id="chat-target-selector" class="chat-target-selector"></div>
+          <iframe class="embedded-page" id="chat-iframe" style="display:none;" src="../chat/chat.html"></iframe>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase SDK（compat版：ビルド不要でそのまま使える） -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="mypage.js"></script>
+</body>
+</html>

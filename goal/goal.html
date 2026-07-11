@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Goal</title>
+  <link rel="stylesheet" href="goal.css" />
+  <!-- Firebase SDK（compat版）。Todoの件数をカテゴリー内の全員でリアルタイムに共有するために使う -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="goal.js" defer></script>
+</head>
+<body>
+  <div class="layout">
+
+    <main class="main">
+      <section class="panel info-panel">
+          <h2>Target</h2>
+          <textarea id="goalInfoText" class="goal-info-editor" placeholder="ここに目標を書いてください"></textarea>
+        </section>
+
+        <section class="panel score-panel">
+          <div class="panel-head">
+            <h2>タスク量による負荷スコア</h2>
+          </div>
+          <div class="score-body">
+            <div class="chart-card">
+              <canvas id="taskChart" width="320" height="320" aria-label="タスク負荷円グラフ"></canvas>
+            </div>
+            <div class="chart-meta">
+              <div class="legend-card">
+                <h3>メンバー別割合</h3>
+                <ul class="legend-list" id="taskLegend"></ul>
+              </div>
+            </div>
+          </div>
+        </section>
+    </main>
+  </div>
+</body>
+</html>
