@@ -191,19 +191,26 @@ function renderTodos() {
 
     const statusInfo = statusMap[todo.status];
 
+    // 「完了」にできるのは担当者本人以外だけにする(自己申告での完了扱いを防ぐため)。
+    // 担当者本人が見ている場合は、チェックボックスとプルダウンの両方で
+    // 「完了」を選べないようにする。ただし、すでに他の人が完了にしているものを
+    // 未着手に戻す（チェックを外す）ことまでは制限しない。
+    const isMine = !!(currentUser && todo.assigneeEmail && todo.assigneeEmail === currentUser.email);
+    const checkboxDisabled = isMine && todo.status !== 'completed';
+
     row.innerHTML = `
       <div class="col-check">
-        <input type="checkbox" ${todo.status === 'completed' ? 'checked' : ''} onchange="toggleComplete('${todo.id}')">
+        <input type="checkbox" ${todo.status === 'completed' ? 'checked' : ''} ${checkboxDisabled ? 'disabled title="自分の担当タスクは自分では完了にできません"' : ''} onchange="toggleComplete('${todo.id}')">
       </div>
       <div class="col-task">・${todo.task}</div>
       <div class="col-assignee">
         <span class="assignee-dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:${colorForAssignee(todo)};"></span>${todo.assignee || '未定'}
       </div>
       <div class="col-status">
-        <select class="status-select" onchange="updateStatus('${todo.id}', this.value)">
+        <select class="status-select" style="width:96px;" onchange="updateStatus('${todo.id}', this.value)">
           <option value="not-started" ${todo.status === 'not-started' ? 'selected' : ''}>未着手</option>
           <option value="ongoing" ${todo.status === 'ongoing' ? 'selected' : ''}>進行中</option>
-          <option value="completed" ${todo.status === 'completed' ? 'selected' : ''}>完了</option>
+          <option value="completed" ${todo.status === 'completed' ? 'selected' : ''} ${isMine ? 'disabled' : ''} ${isMine ? 'title="自分の担当タスクは自分では完了にできません"' : ''}>完了</option>
         </select>
         <span class="status-badge ${statusInfo.class}">${statusInfo.text}</span>
       </div>
@@ -271,12 +278,23 @@ window.deleteTodo = function(id) {
 
 // ステータス更新ユーティリティ
 window.updateStatus = function(id, newStatus) {
+  const todo = todos.find(t => t.id === id);
+  if (!todo) return;
+
+  // 「完了」にできるのは担当者本人以外だけ。画面上は選べないようにしてあるが、
+  // 万一直接この関数が呼ばれた場合に備えて、ここでも同じルールを強制する。
+  const isMine = !!(currentUser && todo.assigneeEmail && todo.assigneeEmail === currentUser.email);
+  if (newStatus === 'completed' && isMine) {
+    console.warn('自分の担当タスクは自分では完了にできません');
+    renderTodos(); // UIを元の状態に戻す(select/checkboxの見た目がずれるのを防ぐ)
+    return;
+  }
+
   const updates = { status: newStatus };
   // 完了/進行中 → 未着手 に戻したときは、そこから改めて経過日数を数え直す
   // (そうしないと、大昔に作られたタスクを一瞬だけ未着手に戻しただけで
   //  いきなり「〇日放置」と表示されてしまうため)
-  const todo = todos.find(t => t.id === id);
-  if (todo && newStatus === 'not-started' && todo.status !== 'not-started') {
+  if (newStatus === 'not-started' && todo.status !== 'not-started') {
     updates.createdAt = firebase.firestore.FieldValue.serverTimestamp();
   }
   todosRef.doc(id).update(updates).catch(err => console.error('更新に失敗しました', err));
