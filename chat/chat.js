@@ -64,6 +64,16 @@ function colorForAuthor(email) {
   return fallbackColorFromEmail(email);
 }
 
+// メッセージの表示名。まずMemberリスト（今の名前）をauthorEmailで引き、
+// 見つかればそちらを優先する。送信時に保存したauthorName（当時の名前の
+// スナップショット）はMemberリストに居ない場合だけのフォールバックにする。
+// これにより、名前を変更した直後に過去のメッセージの表示名も切り替わる。
+function displayNameForAuthor(m) {
+  const known = m.authorEmail ? knownMembers.find(x => x.email === m.authorEmail) : null;
+  if (known && known.name) return known.name;
+  return m.authorName || m.authorEmail || '誰か';
+}
+
 function getCurrentAuthor() {
   const stored = loadStoredUser();
   const email = myEmail || stored?.email || null;
@@ -183,11 +193,16 @@ function render() {
     const row = document.createElement('div');
     row.className = 'chat-row' + (isMine ? ' chat-row-mine' : '');
 
+    // 表示名はMemberリストから「今の名前」をメールアドレスで引く。名前を変更した
+    // 直後でも、メッセージ保存時点の古いauthorNameではなくこちらが優先されるので
+    // 過去のメッセージの表示名もすぐに新しい名前へ切り替わる。
+    const displayName = displayNameForAuthor(m);
+
     if (!isMine) {
       const avatar = document.createElement('div');
       avatar.className = 'chat-avatar';
       avatar.style.background = colorForAuthor(m.authorEmail);
-      avatar.textContent = (m.authorName || m.authorEmail || '?').trim()[0]?.toUpperCase() || '?';
+      avatar.textContent = (displayName || '?').trim()[0]?.toUpperCase() || '?';
       row.appendChild(avatar);
     }
 
@@ -197,7 +212,7 @@ function render() {
     if (!isMine) {
       const nameEl = document.createElement('div');
       nameEl.className = 'chat-author';
-      nameEl.textContent = m.authorName || m.authorEmail || '誰か';
+      nameEl.textContent = displayName;
       col.appendChild(nameEl);
     }
 

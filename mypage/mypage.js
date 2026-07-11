@@ -1182,12 +1182,28 @@ function broadcastMembersToIframes(memberInfo) {
   });
 }
 
+// 個人チャット（DM）を今まさに開いている場合は、上のbroadcastMembersToIframes
+// では対象外にしているので、こちらでdmMemberInfo（2人分）だけを最新の名前・色に
+// 取り直して送る。名前や色を変更したときに、DM画面に居ても即反映されるようにする。
+async function refreshDmMemberInfoIfOpen() {
+  if (!currentOpenDmId || !currentUser) return;
+  const iframe = document.getElementById('chat-iframe');
+  if (!iframe || !iframe.contentWindow) return;
+  const otherEmail = (dmMemberInfo.find(m => m.email !== currentUser.email) || {}).email;
+  if (!otherEmail) return;
+  dmMemberInfo = await resolveMemberInfo([currentUser.email, otherEmail]);
+  try {
+    iframe.contentWindow.postMessage({ type: 'tb-members-update', members: dmMemberInfo, me: currentUserForIframes() }, '*');
+  } catch (e) { /* ignore */ }
+}
+
 async function renderMembers(emails) {
   const box = document.getElementById('member-list');
 
   const memberInfo = await resolveMemberInfo(emails);
   lastMemberInfo = memberInfo;
   broadcastMembersToIframes(memberInfo);
+  refreshDmMemberInfoIfOpen(); // DM表示中なら、そちらの名前・色もついでに最新化する
   renderChatTargetSelector(); // Chatタブの「グループ／個人チャット」チップも一緒に更新する
 
   if (!box) return;
